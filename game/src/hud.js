@@ -15,7 +15,8 @@ export function rankFor(respect) {
   for (const cand of RANK_NAMES) if (respect >= cand[0]) r = cand;
   const idx = RANK_NAMES.indexOf(r);
   const next = RANK_NAMES[idx + 1];
-  return { name: r[1], cur: r[0], next: next ? next[0] : r[0] + 1000 };
+  // At the top rank the bar is full: next equals the current value.
+  return { name: r[1], cur: r[0], next: next ? next[0] : respect };
 }
 
 // Procedural portrait: a stylised face on a small canvas, distinct per

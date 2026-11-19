@@ -4,6 +4,7 @@
 // reachable by road. Stages carry the objective text and the NEXT step the
 // HUD shows, matching the leader boards' density.
 import { dist } from './util.js';
+import { nearestNode } from './city.js';
 
 export const CHARACTERS = {
   DARIO:  { name: 'DARIO',   role: 'DRIVER',    colour: '#c98a4a', hair: '#2a1a10' },
@@ -207,6 +208,20 @@ export function stageTargetPos(game) {
   if (s.type === 'lose') {
     const p = game.city.graph.nodes[LOCATIONS.pierGate];
     return { x: p.x, z: p.z, node: LOCATIONS.pierGate };
+  }
+  // Ram/wreck stages chase a live mission vehicle: point the minimap and
+  // the route at the nearest one so the player always sees where to go.
+  if (s.type === 'ram' || s.type === 'wreck') {
+    let best = null, bestD = Infinity;
+    for (const c of game.missionCars) {
+      if (c.wrecked) continue;
+      const d = dist(game.px(), game.pz(), c.x, c.z);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    if (best) {
+      const node = nearestNode(game.city.graph, best.x, best.z);
+      return { x: best.x, z: best.z, node };
+    }
   }
   if (s.type === 'combat') {
     return { x: game.city.pier.endX, z: game.city.pier.endZ, node: -1 };

@@ -367,7 +367,10 @@ export function stageShot(game, name) {
   function playerCar(name, colour) {
     const car = p.inCar || game.parked[0];
     car.name = name; car.colour = colour;
-    car.mesh = car.mesh; // keep mesh
+    // Recolour the body mesh (the first child) so the car matches its name.
+    if (car.mesh && car.mesh.children[0] && car.mesh.children[0].material) {
+      car.mesh.children[0].material.color.setHex(colour);
+    }
     return car;
   }
 
@@ -376,11 +379,12 @@ export function stageShot(game, name) {
     setMission(5, 0, 2);
     const car = playerCar('TIBURON GT-R', 0xd83a2e);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
-    // Chase runs west down the beach boulevard toward the sea and the sunset.
-    placeCar(car, -60, -160, -Math.PI / 2);
+    // Chase runs west down the north boulevard (z=-192 road) toward the sea
+    // and the sunset; the limo is ahead on the same road.
+    placeCar(car, -60, -192, -Math.PI / 2);
     car.speed = 22;
     const limo = game.missionCars[0];
-    if (limo) placeCar(limo, -112, -160, -Math.PI / 2);
+    if (limo) placeCar(limo, -112, -192, -Math.PI / 2);
     p.money = 18450; game.respect = 3900;
     p.health = 72; p.armour = 55;
     p.weaponIdx = 2; p.weaponsOwned = [true, true, true, true];
@@ -392,7 +396,8 @@ export function stageShot(game, name) {
     setMission(6, 0, 0);
     const car = playerCar('VELOZ COMET RS', 0xd83a2e);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
-    placeCar(car, 32, 96, -Math.PI / 2);
+    // Manhunt on the z=64 boulevard, heading west.
+    placeCar(car, 32, 64, -Math.PI / 2);
     car.speed = 28;
     p.money = 86250; game.respect = 290;
     p.health = 88; p.armour = 40;
@@ -405,11 +410,11 @@ export function stageShot(game, name) {
     setMission(4, 0, 0);
     const car = playerCar('BRISA COUPE', 0x3aa84c);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
-    // Escort runs west toward the harbour.
-    placeCar(car, -24, 24, -Math.PI / 2);
+    // Escort runs west along the z=0 road through Plaza Central.
+    placeCar(car, -24, 0, -Math.PI / 2);
     car.speed = 12;
     const van = game.missions.escortVan;
-    if (van) placeCar(van, -56, 24, -Math.PI / 2);
+    if (van) placeCar(van, -56, 0, -Math.PI / 2);
     p.money = 5400; game.respect = 820;
     p.health = 96; p.armour = 50;
     p.weaponIdx = 0; p.weaponsOwned = [true, true, false, false];
@@ -417,11 +422,13 @@ export function stageShot(game, name) {
     game.missions.say('NADIA', 'Stay with the van. If a cop rams it, ram the cop back.', game.now);
     game.camYaw = 0;
   } else {
-    // finale: M8, on foot at the pier facing Vidal.
+    // finale: M8, on foot at the pier facing Vidal and two henchmen.
     setMission(7, 1, 0);
     if (p.inCar) p.exitCar(game.city);
     const pier = city.pier;
-    p.x = pier.endX + 52; p.z = (pier.z0 + pier.z1) / 2;
+    // Dario 40 m from the pier's end; Vidal 14 m ahead of him, flanked by
+    // two henchmen, so the frame reads as a showdown, not an empty deck.
+    p.x = pier.endX + 40; p.z = (pier.z0 + pier.z1) / 2;
     p.heading = -Math.PI / 2;
     p.mesh.position.set(p.x, 0, p.z);
     p.money = 12400; game.respect = 2100;
@@ -429,6 +436,20 @@ export function stageShot(game, name) {
     p.weaponIdx = 1; p.weaponsOwned = [true, true, true, true];
     game.setWanted(0);
     game.missions.say('VIDAL', 'One last man between you and freedom, Dario. Me.', game.now);
+    const boss = game.enemies[0];
+    if (boss) {
+      boss.x = pier.endX + 26; boss.z = p.z;
+      boss.mesh.position.set(boss.x, 0, boss.z);
+    }
+    // Two henchmen flank Vidal for the shot (spawnWave places them on the
+    // pier; we then pin them to the flanking spots).
+    const before = game.enemies.length;
+    game.spawnWave(2);
+    const flanks = [p.z - 7, p.z + 7];
+    game.enemies.slice(before).forEach((e, i) => {
+      e.x = pier.endX + 26; e.z = flanks[i % 2];
+      e.mesh.position.set(e.x, 0, e.z);
+    });
     game.camYaw = 0;
   }
   game.updateObjective();
