@@ -65,8 +65,14 @@ export function runAutotest(game) {
 
   function ensureCar(dt) {
     // Returns true when the player is in a driveable car.
+    // Abandon a car that is nearly wrecked for a fresh ride instead of
+    // nursing it until it dies mid-chase.
+    if (p.inCar && !p.inCar.wrecked && p.inCar.condition < 25) {
+      p.exitCar(game.city);
+    }
     if (p.inCar && !p.inCar.wrecked) return true;
     if (p.inCar && p.inCar.wrecked) p.exitCar(game.city);
+    game.topUpParkedCars();
     const car = nearestParkedCar();
     if (!car) return false;
     if (dist(p.x, p.z, car.x, car.z) < 4) {

@@ -153,19 +153,8 @@ export class Game {
     this.player.heading = 0;
     this.player.inCar = own; own.isPlayerCar = true; this.player.onFoot = false;
     // Parked stealable cars around the city.
-    const spots = [[1, 1], [5, 1], [1, 3], [5, 5], [3, 1], [6, 4], [2, 6], [4, 2]];
-    spots.forEach(([i, j], k) => {
-      const n = this.city.graph.nodes[j * 7 + i];
-      const car = new Car({
-        x: n.x + 10, z: n.z + 9, heading: this.rng() * Math.PI * 2,
-        name: CAR_NAMES[(k + 2) % CAR_NAMES.length],
-        colour: carColourFor(k + 2), maxSpeed: 32 + this.rng() * 5,
-      });
-      car.mesh = makeCarMesh(this.THREE, car.colour, false);
-      car.parked = true; car.stealable = true;
-      this.scene.add(car.mesh);
-      this.cars.push(car); this.parked.push(car);
-    });
+    this.parkSpots = [[1, 1], [5, 1], [1, 3], [5, 5], [3, 1], [6, 4], [2, 6], [4, 2]];
+    this.parkSpots.forEach(([i, j], k) => this.spawnParkedCar(i, j, k));
     // Traffic.
     for (let k = 0; k < 10; k++) {
       const car = makeTrafficCar(this.city, this.rng, k, this.THREE, makeCarMesh, carColourFor);
@@ -174,6 +163,35 @@ export class Game {
     }
     // Pedestrians.
     for (let k = 0; k < 22; k++) this.spawnPed();
+  }
+
+  spawnParkedCar(i, j, k) {
+    const n = this.city.graph.nodes[j * 7 + i];
+    const car = new Car({
+      x: n.x + 10, z: n.z + 9, heading: this.rng() * Math.PI * 2,
+      name: CAR_NAMES[(k + 2) % CAR_NAMES.length],
+      colour: carColourFor(k + 2), maxSpeed: 32 + this.rng() * 5,
+    });
+    car.mesh = makeCarMesh(this.THREE, car.colour, false);
+    car.parked = true; car.stealable = true;
+    this.scene.add(car.mesh);
+    this.cars.push(car); this.parked.push(car);
+    return car;
+  }
+
+  // Keep the city supplied with rides: if fewer than 3 driveable parked
+  // cars remain, park a fresh one at a free spot.
+  topUpParkedCars() {
+    const alive = this.parked.filter(c => !c.wrecked);
+    if (alive.length >= 3) return;
+    const used = new Set(alive.map(c => `${Math.round(c.x)},${Math.round(c.z)}`));
+    const free = this.parkSpots.filter(([i, j]) => {
+      const n = this.city.graph.nodes[j * 7 + i];
+      return !used.has(`${n.x + 10},${n.z + 9}`);
+    });
+    if (free.length === 0) return;
+    const [i, j] = free[Math.floor(this.rng() * free.length)];
+    this.spawnParkedCar(i, j, this.parked.length);
   }
 
   spawnPed() {
@@ -661,6 +679,9 @@ export class Game {
     // --- save ---
     this.saveTimer += dt;
     if (this.saveTimer > 30) { this.saveTimer = 0; this.saveGame(); }
+    // Keep parked rides available in the city.
+    this.parkTopUpTimer = (this.parkTopUpTimer || 0) + dt;
+    if (this.parkTopUpTimer > 5) { this.parkTopUpTimer = 0; this.topUpParkedCars(); }
 
     // --- camera + render ---
     this.updateCamera(dt);

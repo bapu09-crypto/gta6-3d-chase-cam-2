@@ -145,6 +145,10 @@ export class Car {
 
   damage(amount, from) {
     if (this.wrecked) return;
+    // A parked, unoccupied car is street furniture, not a target: it takes
+    // no damage from passing traffic or police. Once the player is driving
+    // it, it can be damaged and wrecked like any car.
+    if (this.parked && !this.isPlayerCar) return;
     this.condition -= amount;
     if (this.condition <= 0) {
       this.condition = 0;
