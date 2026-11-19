@@ -352,7 +352,7 @@ export class Game {
     const limo = new Car({
       x: p.x, z: p.z, heading: Math.PI,
       name: 'THE REGENT', colour: 0x14141a,
-      isTarget: true, cruise: 15, maxSpeed: 30,
+      isTarget: true, cruise: 12, maxSpeed: 26,
     });
     limo.mesh = makeCarMesh(this.THREE, 0x14141a, false);
     limo.goalNode = LOCATIONS.pierGate;
@@ -458,14 +458,9 @@ export class Game {
     } else if (s.type === 'ram') {
       const limo = this.missionCars[0];
       if (limo) {
-        // A limo wrecked before 4 counted rams restarts the stage instead
-        // of stalling the mission forever.
-        if (limo.wrecked && mc.progress < s.count) {
-          this.log('The Regent was wrecked before the job was done — the stage restarts.');
-          this.enterStage();
-          return;
-        }
         this.ramCooldown = Math.max(0, this.ramCooldown - dt);
+        // Count a ram FIRST: the killing blow still counts as a hit, so a
+        // limo wrecked by the final ram is a success, not a restart.
         if (limo.rammedBy && limo.rammedBy.car === p.inCar && this.ramCooldown <= 0) {
           mc.progress++;
           this.ramCooldown = 1.5;
@@ -473,9 +468,16 @@ export class Game {
           this.radio.chime();
           limo.rammedBy = null;
           if (mc.progress >= s.count) {
-            limo.damage(999, p.inCar);
             this.advanceStage();
+            return;
           }
+        }
+        // A limo wrecked before enough rams restarts the stage instead of
+        // stalling the mission forever.
+        if (limo.wrecked) {
+          this.log('The Regent was wrecked before the job was done — the stage restarts.');
+          this.enterStage();
+          return;
         }
         const t = this.city.graph.nodes[LOCATIONS.pierGate];
         if (dist(limo.x, limo.z, t.x, t.z) < 14 && mc.progress < s.count) {

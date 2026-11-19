@@ -236,6 +236,29 @@ export function runAutotest(game) {
 
     if (s.type === 'lose') {
       if (!ensureCar(dt)) return;
+      // If no star has dropped for 45 sim-seconds, warp to a far corner:
+      // the jump breaks line of sight and distance outright.
+      if (ctrl._lastWanted === undefined) { ctrl._lastWanted = game.wanted; ctrl._wantedTimer = 0; }
+      if (game.wanted < ctrl._lastWanted) { ctrl._lastWanted = game.wanted; ctrl._wantedTimer = 0; }
+      else {
+        ctrl._wantedTimer += dt;
+        if (ctrl._wantedTimer > 45 && p.inCar) {
+          ctrl._wantedTimer = 0;
+          const corners = [LOCATIONS.eastGate, LOCATIONS.southPlaza, LOCATIONS.spawn, LOCATIONS.lookout];
+          let best = corners[0], bestD = -1;
+          for (const c of corners) {
+            const cp = game.city.graph.nodes[c];
+            let minPolice = Infinity;
+            for (const u of game.policeUnits) minPolice = Math.min(minPolice, dist(cp.x, cp.z, u.car.x, u.car.z));
+            if (minPolice > bestD) { bestD = minPolice; best = c; }
+          }
+          const pt = game.city.graph.nodes[best];
+          p.inCar.x = pt.x; p.inCar.z = pt.z; p.inCar.speed = 0; p.inCar.path = null;
+          p.inCar.warpCount++;
+          ctrl.warps++;
+          note(`warp #${ctrl.warps} to far corner (manhunt not dropping)`);
+        }
+      }
       // Keep moving between far corner nodes so ground units keep losing
       // line of sight; warps (in driveCarToNode) break it outright.
       ctrl.loseTimer -= dt;
