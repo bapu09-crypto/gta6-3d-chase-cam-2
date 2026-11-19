@@ -75,7 +75,10 @@ export function runAutotest(game) {
     }
     // Walk to the car; if the player is wedged and makes no progress for
     // 4 sim-seconds, step them to the nearest road node (always clear).
-    const moved = dist(p.x, p.z, ctrl._footX ?? p.x, ctrl._footZ ?? p.z);
+    if (ctrl._footX === undefined) {
+      ctrl._footX = p.x; ctrl._footZ = p.z; ctrl._footTimer = 0;
+    }
+    const moved = dist(p.x, p.z, ctrl._footX, ctrl._footZ);
     if (moved > 1) { ctrl._footX = p.x; ctrl._footZ = p.z; ctrl._footTimer = 0; }
     else {
       ctrl._footTimer = (ctrl._footTimer || 0) + dt;
