@@ -12,8 +12,8 @@
 //  steers directly at the live target (12), and the reverse branch is disabled
 //  while following a live moving target (13). Lesson 14 (mission-3 southern
 //  road traffic cluster) is handled by keeping police spawns off that road.
-import { clamp, angleDiff, dist, nearestNode, distanceToRoad } from './util.js';
-import { findPath as bfsPath, ROAD_HALF } from './city.js';
+import { clamp, angleDiff, dist, closestOnSeg } from './util.js';
+import { findPath as bfsPath, ROAD_HALF, distanceToRoad, nearestNode } from './city.js';
 
 export const CAR_NAMES = [
   'VELOZ COMET', 'RUKAN PELO GT', 'MAREA SEDAN', 'BRISA COUPE',
@@ -214,46 +214,52 @@ export class Car {
     if (!this.path || this.replanTimer <= 0 || goalNode !== this.goalNode) {
       this.goalNode = goalNode;
       this.path = bfsPath(graph, myNode, goalNode) || [myNode];
-      this.pathIdx = 0;
       this.replanTimer = 0.6;
     }
 
-    // Advance along the path: skip nodes we have passed.
-    while (this.pathIdx < this.path.length - 1) {
-      const n = graph.nodes[this.path[this.pathIdx]];
-      if (dist(this.x, this.z, n.x, n.z) < 9) this.pathIdx++;
-      else break;
-    }
-
-    // Steering target: lesson 12 — within close range of a live target,
-    // steer DIRECTLY at its live position, not at path nodes.
+    // Pure pursuit on the path polyline: find the closest point on the
+    // polyline to the car, then steer at a point LOOKAHEAD metres further
+    // along it. This never targets a node the car already passed (the bug
+    // that made a car U-turn forever between two nodes when a replan reset
+    // its progress), because the closest point is always ahead of it.
     let steerX, steerZ;
+    let closestSeg = 0;
     if (following && dist(this.x, this.z, targetPos.x, targetPos.z) < CLOSE_RANGE) {
+      // Lesson 12: within close range of a live target, steer DIRECTLY at
+      // its live position, not at path nodes.
       steerX = targetPos.x; steerZ = targetPos.z;
     } else if (offRoad) {
       // Lesson 8: while off-road, steer back to the road, not the target.
       const n = graph.nodes[this.path[0]];
       steerX = n.x; steerZ = n.z;
     } else {
-      // Short lookahead along the path polyline (lesson 8).
-      let acc = 0;
-      let px = this.x, pz = this.z;
-      let idx = this.pathIdx;
-      while (idx < this.path.length && acc < LOOKAHEAD) {
-        const n = graph.nodes[this.path[idx]];
-        const seg = dist(px, pz, n.x, n.z);
-        if (acc + seg >= LOOKAHEAD) {
-          const t = (LOOKAHEAD - acc) / (seg || 1);
-          steerX = px + (n.x - px) * t;
-          steerZ = pz + (n.z - pz) * t;
-          acc = LOOKAHEAD;
+      const pts = this.path.map(n => graph.nodes[n]);
+      let bestD = Infinity, bestX = pts[0].x, bestZ = pts[0].z, bestT = 0;
+      for (let k = 0; k < pts.length - 1; k++) {
+        const c = closestOnSeg(this.x, this.z, pts[k].x, pts[k].z, pts[k + 1].x, pts[k + 1].z);
+        const d = dist(this.x, this.z, c.x, c.z);
+        if (d < bestD) { bestD = d; bestX = c.x; bestZ = c.z; bestT = c.t; closestSeg = k; }
+      }
+      // Walk LOOKAHEAD metres along the polyline from the closest point.
+      let remain = LOOKAHEAD;
+      let px = bestX, pz = bestZ;
+      let k = closestSeg;
+      let t = bestT;
+      steerX = pts[pts.length - 1].x;
+      steerZ = pts[pts.length - 1].z;
+      while (k < pts.length - 1) {
+        const a = k === closestSeg ? { x: px, z: pz } : pts[k];
+        const b = pts[k + 1];
+        const segLen = dist(a.x, a.z, b.x, b.z);
+        if (remain <= segLen) {
+          const f = segLen === 0 ? 0 : remain / segLen;
+          steerX = a.x + (b.x - a.x) * f;
+          steerZ = a.z + (b.z - a.z) * f;
+          remain = 0;
           break;
         }
-        acc += seg; px = n.x; pz = n.z; idx++;
-      }
-      if (acc < LOOKAHEAD) {
-        const last = graph.nodes[this.path[this.path.length - 1]];
-        steerX = last.x; steerZ = last.z;
+        remain -= segLen;
+        k++;
       }
     }
 
@@ -268,7 +274,7 @@ export class Car {
     // path (including the last node before the target) and cap speed now.
     let cornerCap = Infinity;
     if (!following || dist(this.x, this.z, targetPos.x, targetPos.z) > CLOSE_RANGE) {
-      for (let k = this.pathIdx; k < Math.min(this.path.length - 1, this.pathIdx + 2); k++) {
+      for (let k = closestSeg; k < Math.min(this.path.length - 1, closestSeg + 2); k++) {
         const a = graph.nodes[this.path[k]];
         const b = graph.nodes[this.path[k + 1]];
         const dirNow = Math.atan2(b.x - a.x, b.z - a.z);

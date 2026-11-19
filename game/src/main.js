@@ -1,7 +1,7 @@
 // main.js — Coraluna: a 3D chase-cam open-world crime game.
 // Boots the city, the player, traffic, police and the 8-mission story, and
 // runs the game loop. All game code is written fresh for this entry.
-import { buildCity, districtAt, nearestNode, findPath, LOCATIONS as _LOC } from './city.js';
+import { buildCity, districtAt, nearestNode, findPath } from './city.js';
 import { buildWorld, makeCarMesh, makePedMesh, makeHeliMesh, carColourFor } from './world.js';
 import { Car, makeTrafficCar, updateTraffic, PoliceUnit, Helicopter, POLICE_CALLSIGNS, POLICE_ROLES, CAR_NAMES, VAN_NAMES } from './vehicles.js';
 import { Player, WEAPONS, hitsBuilding } from './player.js';
@@ -813,7 +813,6 @@ export class Game {
     let last = performance.now();
     let frame = 0;
     const tick = (t) => {
-      requestAnimationFrame(tick);
       const dt = Math.min(0.05, (t - last) / 1000);
       last = t;
       frame++;
@@ -824,12 +823,13 @@ export class Game {
         if (frame % 12 === 0) this.renderer.render(this.scene, this.camera);
         if (this.autotest.finished) {
           this.autotest.report();
-          return;
+          return; // stop the loop: no further frame is scheduled
         }
       } else if (!this.paused) {
         this.update(dt);
         this.renderer.render(this.scene, this.camera);
       }
+      requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   }

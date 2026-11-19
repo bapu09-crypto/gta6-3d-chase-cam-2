@@ -52,10 +52,11 @@ export function runAutotest(game) {
     p.stepOnFoot(dt, { forward: true }, game.city);
   }
 
-  function nearestParkedCar() {
+  function nearestParkedCar(excludeOwned) {
     let best = null, bestD = Infinity;
     for (const c of game.parked) {
       if (c.wrecked || c === p.inCar) continue;
+      if (excludeOwned && c.owned) continue; // the steal stage needs a car that is not Dario's own
       const d = dist(p.x, p.z, c.x, c.z);
       if (d < bestD) { bestD = d; best = c; }
     }
@@ -134,12 +135,13 @@ export function runAutotest(game) {
       note(`Mission ${mc.mission.id} ${mc.mission.title} — stage ${mc.stageIdx + 1}/${mc.stageCount}: ${s.title}`);
     }
     // Timeout guard.
-    if (ctrl.simSeconds > 2400) {
+    if (ctrl.simSeconds > 2400 && !ctrl.failed) {
       ctrl.finished = true;
       ctrl.failed = true;
       note('TIMEOUT: playthrough did not finish in 2400 sim-seconds');
       return;
     }
+    if (ctrl.finished) return;
     // Respawn after death: the game handles it; just keep driving.
     if (p.dead) return;
 
@@ -164,9 +166,10 @@ export function runAutotest(game) {
     }
 
     if (s.type === 'steal') {
-      // Get out of the owned car, walk to a parked car, take it.
+      // Get out of the owned car, walk to a parked car that is not Dario's
+      // own, take it.
       if (p.inCar) { p.exitCar(); return; }
-      const car = nearestParkedCar();
+      const car = nearestParkedCar(true);
       if (!car) return;
       if (dist(p.x, p.z, car.x, car.z) < 4) {
         p.tryEnterCar(game.cars.filter(c => c.stealable || c.owned));
