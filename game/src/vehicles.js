@@ -269,7 +269,12 @@ export class Car {
 
     // Speed control.
     let cruise = opts.cruise || 16;
-    if (following) cruise = Math.max(cruise, Math.abs(this.followTarget.speed) + 4);
+    // Match the prey's speed — but only for a chaser that is meant to catch
+    // its target (the player ramming a van or a limo). Police never match
+    // the player's speed, or a manhunt could never be lost.
+    if (following && opts.matchSpeed !== false) {
+      cruise = Math.max(cruise, Math.abs(this.followTarget.speed) + 4);
+    }
     // Lesson 6: predictive corner braking — look at the NEXT turn on the
     // path (including the last node before the target) and cap speed now.
     let cornerCap = Infinity;
@@ -285,7 +290,9 @@ export class Car {
     }
     // Lesson 5: no closing-speed cap while following a live target.
     let targetSpeed = Math.min(cruise, cornerCap);
-    if (following) targetSpeed = Math.max(targetSpeed, Math.abs(this.followTarget.speed) + 3);
+    if (following && opts.matchSpeed !== false) {
+      targetSpeed = Math.max(targetSpeed, Math.abs(this.followTarget.speed) + 3);
+    }
     // Lesson 10: zero arrive radius on live targets — drive through them.
     const arrived = !following && this.path &&
       dist(this.x, this.z,

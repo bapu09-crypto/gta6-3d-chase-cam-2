@@ -266,11 +266,11 @@ export class Game {
     if (this.wanted === 0) { this.inSight = false; this.losTimer = 0; return; }
     const groundSight = this.policeUnits.some(u => this.unitSees(u));
     // The helicopter loses the player if no ground unit has seen them for
-    // 6 seconds: it breaks off to search elsewhere instead of hovering
+    // 4 seconds: it breaks off to search elsewhere instead of hovering
     // forever, which is what makes a 4-star manhunt loseable.
     if (!groundSight) this.losTimer = (this.losTimer || 0) + dt;
     else this.losTimer = 0;
-    if (this.losTimer > 6) {
+    if (this.losTimer > 4) {
       if (!this.heli.searching) {
         this.heli.searching = true;
         const n = this.city.graph.nodes[Math.floor(this.rng() * this.city.graph.nodes.length)];
@@ -602,9 +602,11 @@ export class Game {
       }
       car.followTarget = this.player.inCar || null;
       if (this.player.inCar) {
-        // 1 star: pursue without ramming (standoff); 2+: ram.
-        const cruise = this.wanted >= 2 ? 34 : (d < 14 ? 6 : 26);
-        car.autopilot(dt, { city: this.city, cars: this.cars, now: this.now, cruise, isChase: true });
+        // 1 star: pursue without ramming (standoff); 2+: ram. Police never
+        // match the player's speed (matchSpeed false), so a fast driver can
+        // open a gap and lose them.
+        const cruise = this.wanted >= 2 ? 30 : (d < 14 ? 6 : 26);
+        car.autopilot(dt, { city: this.city, cars: this.cars, now: this.now, cruise, isChase: true, matchSpeed: false });
       } else {
         // On foot: drive up and stop near the player.
         car.followTarget = null;
