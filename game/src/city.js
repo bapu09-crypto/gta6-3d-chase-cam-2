@@ -93,6 +93,22 @@ export function nearestNode(graph, x, z) {
   return best;
 }
 
+// Closest point on any road centreline segment to (x, z).
+export function nearestRoadPoint(graph, x, z) {
+  let best = null, bestD = Infinity;
+  for (const [a, b] of graph.edges) {
+    const A = graph.nodes[a], B = graph.nodes[b];
+    const dx = B.x - A.x, dz = B.z - A.z;
+    const len2 = dx * dx + dz * dz;
+    let t = len2 === 0 ? 0 : ((x - A.x) * dx + (z - A.z) * dz) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const px = A.x + dx * t, pz = A.z + dz * t;
+    const d = dist(x, z, px, pz);
+    if (d < bestD) { bestD = d; best = { x: px, z: pz }; }
+  }
+  return best;
+}
+
 // Distance from a point to the nearest road centreline segment.
 export function distanceToRoad(graph, x, z) {
   let best = Infinity;

@@ -66,12 +66,27 @@ export function runAutotest(game) {
   function ensureCar(dt) {
     // Returns true when the player is in a driveable car.
     if (p.inCar && !p.inCar.wrecked) return true;
-    if (p.inCar && p.inCar.wrecked) p.exitCar();
+    if (p.inCar && p.inCar.wrecked) p.exitCar(game.city);
     const car = nearestParkedCar();
     if (!car) return false;
     if (dist(p.x, p.z, car.x, car.z) < 4) {
       p.tryEnterCar(game.cars.filter(c => c.stealable || c.owned));
       return !!p.inCar;
+    }
+    // Walk to the car; if the player is wedged and makes no progress for
+    // 4 sim-seconds, step them to the nearest road node (always clear).
+    const moved = dist(p.x, p.z, ctrl._footX ?? p.x, ctrl._footZ ?? p.z);
+    if (moved > 1) { ctrl._footX = p.x; ctrl._footZ = p.z; ctrl._footTimer = 0; }
+    else {
+      ctrl._footTimer = (ctrl._footTimer || 0) + dt;
+      if (ctrl._footTimer > 4) {
+        ctrl._footTimer = 0;
+        const n = nearestNode(game.city.graph, p.x, p.z);
+        const pt = game.city.graph.nodes[n];
+        p.x = pt.x; p.z = pt.z;
+        ctrl.warps++;
+        note(`foot warp #${ctrl.warps} to road node (wedged on foot)`);
+      }
     }
     walkToPoint(dt, car.x, car.z);
     return false;
@@ -147,7 +162,7 @@ export function runAutotest(game) {
 
     if (s.type === 'combat') {
       // On foot on the pier: walk at the nearest live enemy and shoot.
-      if (p.inCar) p.exitCar();
+      if (p.inCar) p.exitCar(game.city);
       const alive = game.enemies.filter(e => e.health > 0);
       if (alive.length === 0) return;
       let best = alive[0], bestD = Infinity;
@@ -168,7 +183,7 @@ export function runAutotest(game) {
     if (s.type === 'steal') {
       // Get out of the owned car, walk to a parked car that is not Dario's
       // own, take it.
-      if (p.inCar) { p.exitCar(); return; }
+      if (p.inCar) { p.exitCar(game.city); return; }
       const car = nearestParkedCar(true);
       if (!car) return;
       if (dist(p.x, p.z, car.x, car.z) < 4) {
@@ -354,7 +369,7 @@ export function stageShot(game, name) {
   } else {
     // finale: M8, on foot at the pier facing Vidal.
     setMission(7, 1, 0);
-    if (p.inCar) p.exitCar();
+    if (p.inCar) p.exitCar(game.city);
     const pier = city.pier;
     p.x = pier.endX + 52; p.z = (pier.z0 + pier.z1) / 2;
     p.heading = -Math.PI / 2;

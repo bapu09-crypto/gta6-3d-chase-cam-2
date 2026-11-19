@@ -2,7 +2,7 @@
 // melee and pistol combat, health and armour. The player is a circle of
 // radius 0.7 m; on foot he moves on the road graph like any pedestrian.
 import { clamp, angleDiff, dist } from './util.js';
-import { nearestNode } from './city.js';
+import { nearestNode, nearestRoadPoint } from './city.js';
 
 export const WEAPONS = [
   { id: 'FISTS', name: 'FISTS', ammo: Infinity, damage: 12, range: 2.2, rate: 0.45 },
@@ -106,7 +106,7 @@ export class Player {
     return best;
   }
 
-  exitCar() {
+  exitCar(city) {
     if (!this.inCar) return;
     const c = this.inCar;
     this.x = c.x + Math.cos(c.heading) * 3.5;
@@ -116,6 +116,13 @@ export class Player {
     this.inCar = null;
     this.onFoot = true;
     this.stealCooldown = 0.5;
+    // Never leave the player wedged against a building face: if the exit
+    // spot is inside a building's margin, snap to the nearest road point,
+    // which is always clear.
+    if (city && hitsBuilding(this.x, this.z, city)) {
+      const rp = nearestRoadPoint(city.graph, this.x, this.z);
+      if (rp) { this.x = rp.x; this.z = rp.z; }
+    }
     if (this.mesh) {
       this.mesh.visible = true;
       this.mesh.position.set(this.x, 0, this.z);

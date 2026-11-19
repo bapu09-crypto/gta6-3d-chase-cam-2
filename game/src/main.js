@@ -365,7 +365,7 @@ export class Game {
   startCombatStage() {
     // Dario goes to the pier on foot for the finale.
     const pier = this.city.pier;
-    if (this.player.inCar) this.player.exitCar();
+    if (this.player.inCar) this.player.exitCar(this.city);
     this.player.x = pier.x1 - 6;
     this.player.z = (pier.z0 + pier.z1) / 2;
     this.player.heading = -Math.PI / 2;
@@ -458,6 +458,13 @@ export class Game {
     } else if (s.type === 'ram') {
       const limo = this.missionCars[0];
       if (limo) {
+        // A limo wrecked before 4 counted rams restarts the stage instead
+        // of stalling the mission forever.
+        if (limo.wrecked && mc.progress < s.count) {
+          this.log('The Regent was wrecked before the job was done — the stage restarts.');
+          this.enterStage();
+          return;
+        }
         this.ramCooldown = Math.max(0, this.ramCooldown - dt);
         if (limo.rammedBy && limo.rammedBy.car === p.inCar && this.ramCooldown <= 0) {
           mc.progress++;
@@ -514,7 +521,7 @@ export class Game {
   toggleCar() {
     if (!this.started || this.paused || this.player.dead) return;
     if (this.player.inCar) {
-      this.player.exitCar();
+      this.player.exitCar(this.city);
     } else {
       const car = this.player.tryEnterCar(this.cars.filter(c => c.stealable || c.owned));
       if (car) {
@@ -545,7 +552,7 @@ export class Game {
         if (Math.abs(car.speed) > 3) this.radio.setEngine(Math.abs(car.speed) * 3.6, true);
         if (car.wrecked) {
           this.log('Your car is wrecked. Continue on foot.');
-          p.exitCar();
+          p.exitCar(this.city);
         }
       } else {
         const input = {
