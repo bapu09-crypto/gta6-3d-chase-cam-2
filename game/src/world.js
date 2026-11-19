@@ -1,124 +1,303 @@
-// The game's rules and state, with no drawing and no browser in it: the player's paddle, the
-// pool of falling blocks and coins, spawning, collisions, score, lives and level. step() advances
-// one fixed step and returns what happened as bit flags, so the caller can react without the
-// world knowing about screens or sound. Nothing here allocates after createWorld returns.
-import { BLOCK, COIN, FIELD, LEVEL, LIVES, PLAYER, POOL_SIZE } from './config.js';
+// world.js — builds the Coraluna three.js scene from the city layout:
+// golden-hour sun, sea and beach to the west, roads, buildings, palms, lamps,
+// the pier, billboards and props. Also factories for cars, pedestrians and the
+// police helicopter. All art is procedural boxes/cylinders; no textures.
+import { HALF, GRID, SPACING, ROAD_HALF } from './city.js';
 
-export const KIND_BLOCK = 0;
-export const KIND_COIN = 1;
+const CAR_COLOURS = [0xd83a2e, 0x2e6fd8, 0xe8b64c, 0xeeeeee, 0x222226, 0x3aa84c, 0xd8704c, 0x8a5fd0];
 
-export const EVENT_HIT = 1;
-export const EVENT_COIN = 2;
-export const EVENT_OVER = 4;
+export function buildWorld(city, THREE) {
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0xf2a35e, 260, 900);
 
-function overlaps(a, b) {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+  // Golden-hour sky: big gradient dome + low sun.
+  const skyGeo = new THREE.SphereGeometry(900, 24, 16);
+  const skyMat = new THREE.MeshBasicMaterial({
+    color: 0xffb36b, side: THREE.BackSide, fog: false,
+  });
+  scene.add(new THREE.Mesh(skyGeo, skyMat));
+  const sun = new THREE.DirectionalLight(0xffc27a, 2.6);
+  sun.position.set(-320, 150, -180);
+  scene.add(sun);
+  const hemi = new THREE.HemisphereLight(0xffd9a0, 0x3a4a6a, 0.9);
+  scene.add(hemi);
+  const sunBall = new THREE.Mesh(
+    new THREE.SphereGeometry(26, 16, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffe9a8, fog: false }));
+  sunBall.position.set(-640, 120, -320);
+  scene.add(sunBall);
+
+  // Ground: warm sand/grass base under the whole map.
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(1400, 1400),
+    new THREE.MeshLambertMaterial({ color: 0xc9a06a }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(0, -0.2, 0);
+  scene.add(ground);
+
+  // Sea: animated-looking blue plane west of the city.
+  const sea = new THREE.Mesh(
+    new THREE.PlaneGeometry(400, 1400),
+    new THREE.MeshLambertMaterial({ color: 0x2a7fb8 }));
+  sea.rotation.x = -Math.PI / 2;
+  sea.position.set(-HALF - 200, 0.05, 0);
+  scene.add(sea);
+  // Beach strip.
+  const beach = new THREE.Mesh(
+    new THREE.PlaneGeometry(46, 1400),
+    new THREE.MeshLambertMaterial({ color: 0xe8cf9a }));
+  beach.rotation.x = -Math.PI / 2;
+  beach.position.set(-HALF - 23, 0.02, 0);
+  scene.add(beach);
+
+  // City baseplate: warm asphalt-grey slab.
+  const slab = new THREE.Mesh(
+    new THREE.PlaneGeometry(HALF * 2 + 40, HALF * 2 + 40),
+    new THREE.MeshLambertMaterial({ color: 0x8a7a66 }));
+  slab.rotation.x = -Math.PI / 2;
+  slab.position.set(0, 0, 0);
+  scene.add(slab);
+
+  // Roads: dark strips along every graph edge, with pale centre dashes.
+  const roadMat = new THREE.MeshLambertMaterial({ color: 0x3c3c44 });
+  const dashMat = new THREE.MeshBasicMaterial({ color: 0xd8d0b8 });
+  for (const [a, b] of city.graph.edges) {
+    const A = city.graph.nodes[a], B = city.graph.nodes[b];
+    const len = Math.hypot(B.x - A.x, B.z - A.z);
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(len, ROAD_HALF * 2), roadMat);
+    strip.rotation.x = -Math.PI / 2;
+    strip.rotation.z = -Math.atan2(B.z - A.z, B.x - A.x);
+    strip.position.set((A.x + B.x) / 2, 0.06, (A.z + B.z) / 2);
+    scene.add(strip);
+    const ndash = Math.floor(len / 12);
+    for (let k = 0; k < ndash; k++) {
+      const t = (k + 0.5) / ndash;
+      const dash = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.5), dashMat);
+      dash.rotation.x = -Math.PI / 2;
+      dash.rotation.z = -Math.atan2(B.z - A.z, B.x - A.x);
+      dash.position.set(A.x + (B.x - A.x) * t, 0.08, A.z + (B.z - A.z) * t);
+      scene.add(dash);
+    }
+  }
+  // Intersection pads.
+  const padGeo = new THREE.PlaneGeometry(ROAD_HALF * 2 + 2, ROAD_HALF * 2 + 2);
+  for (const n of city.graph.nodes) {
+    const pad = new THREE.Mesh(padGeo, roadMat);
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.set(n.x, 0.07, n.z);
+    scene.add(pad);
+  }
+
+  // Buildings: boxes with a lighter roof cap and emissive windows at dusk.
+  const winMat = new THREE.MeshBasicMaterial({ color: 0xffd98a });
+  for (const b of city.buildings) {
+    const w = b.x1 - b.x0, d = b.z1 - b.z0;
+    const col = new THREE.Color().setHSL(b.hue, 0.45, 0.62);
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(w, b.h, d),
+      new THREE.MeshLambertMaterial({ color: col }));
+    mesh.position.set((b.x0 + b.x1) / 2, b.h / 2, (b.z0 + b.z1) / 2);
+    scene.add(mesh);
+    const roof = new THREE.Mesh(
+      new THREE.BoxGeometry(w + 0.6, 0.5, d + 0.6),
+      new THREE.MeshLambertMaterial({ color: 0x5a4a3c }));
+    roof.position.set(mesh.position.x, b.h + 0.25, mesh.position.z);
+    scene.add(roof);
+    // A few lit windows on the street-facing side.
+    const rows = Math.min(4, Math.floor(b.h / 6));
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < Math.min(3, Math.floor(w / 6)); c++) {
+        if ((r * 7 + c * 3 + Math.floor(b.x0)) % 3 !== 0) continue;
+        const win = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.8), winMat);
+        win.position.set(
+          b.x0 + 3 + c * 6,
+          3 + r * 5,
+          b.z1 + 0.06);
+        scene.add(win);
+      }
+    }
+  }
+
+  // Palm trees: trunk + 6 fronds.
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x7a5a38 });
+  const frondMat = new THREE.MeshLambertMaterial({ color: 0x3f8f3a });
+  function palm(x, z, s) {
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35 * s, 0.55 * s, 7 * s, 6), trunkMat);
+    trunk.position.y = 3.5 * s;
+    g.add(trunk);
+    for (let k = 0; k < 6; k++) {
+      const fr = new THREE.Mesh(new THREE.ConeGeometry(0.9 * s, 4.5 * s, 4), frondMat);
+      const a = (k / 6) * Math.PI * 2;
+      fr.position.set(Math.cos(a) * 1.6 * s, 7.2 * s, Math.sin(a) * 1.6 * s);
+      fr.rotation.z = Math.cos(a) * 1.1;
+      fr.rotation.x = -Math.sin(a) * 1.1;
+      g.add(fr);
+    }
+    g.position.set(x, 0, z);
+    return g;
+  }
+  for (const p of city.palms) scene.add(palm(p.x, p.z, 1));
+  for (const t of city.plazaTrees) scene.add(palm(t.x, t.z, 1.2));
+
+  // Street lamps with warm glow spheres.
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2e });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffe2a0 });
+  for (const l of city.lamps) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 6, 5), poleMat);
+    pole.position.set(l.x, 3, l.z);
+    scene.add(pole);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), glowMat);
+    bulb.position.set(l.x, 6.2, l.z);
+    scene.add(bulb);
+  }
+
+  // The pier: wooden deck + posts + a small lighthouse beacon at the end.
+  const deckMat = new THREE.MeshLambertMaterial({ color: 0x8a6a42 });
+  const deck = new THREE.Mesh(
+    new THREE.BoxGeometry(96, 1.2, 24),
+    deckMat);
+  deck.position.set(-HALF - 48, 0.6, -22);
+  scene.add(deck);
+  for (let k = 0; k < 8; k++) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 3, 6), poleMat);
+    post.position.set(-HALF - 8 - k * 12, 0.4, -34);
+    scene.add(post);
+    const post2 = post.clone();
+    post2.position.z = -10;
+    scene.add(post2);
+  }
+  const beacon = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.2, 1.8, 9, 8),
+    new THREE.MeshLambertMaterial({ color: 0xe8e8e8 }));
+  beacon.position.set(city.pier.endX, 5, city.pier.endZ);
+  scene.add(beacon);
+  const beaconLight = new THREE.Mesh(
+    new THREE.SphereGeometry(1.4, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xff5040 }));
+  beaconLight.position.set(city.pier.endX, 10, city.pier.endZ);
+  scene.add(beaconLight);
+
+  // Billboards along the beach boulevard.
+  const boardTexts = ['CORALUNA', 'PLAYA SERENA', 'SOL 98.1', 'PUERTO AZUL'];
+  boardTexts.forEach((label, i) => {
+    const g = new THREE.Group();
+    const board = new THREE.Mesh(
+      new THREE.BoxGeometry(14, 5, 0.6),
+      new THREE.MeshLambertMaterial({ color: [0xd83a2e, 0x2e6fd8, 0xe8b64c, 0x3aa84c][i] }));
+    board.position.y = 9;
+    g.add(board);
+    const leg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 7, 5), poleMat);
+    leg1.position.set(-5, 3.5, 0);
+    g.add(leg1);
+    const leg2 = leg1.clone(); leg2.position.x = 5; g.add(leg2);
+    g.position.set(-HALF + 4, 0, -160 + i * 100);
+    g.userData.label = label;
+    scene.add(g);
+  });
+
+  return { scene, sun, palm };
 }
 
-export function createWorld(random) {
-  const player = { x: 0, y: FIELD.groundY - PLAYER.height, width: PLAYER.width, height: PLAYER.height, invulnerable: 0 };
-  const items = [];
-  for (let index = 0; index < POOL_SIZE; index += 1) {
-    items.push({ active: false, kind: KIND_BLOCK, x: 0, y: 0, width: 0, height: 0, speed: 0 });
+// Car mesh factory: body + cabin + 4 wheels + headlights. Returns a Group
+// whose .userData holds the wheel meshes for spin animation.
+export function makeCarMesh(THREE, colour, isPolice) {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshLambertMaterial({ color: isPolice ? 0x1a2a3a : colour });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.75, 4.4), bodyMat);
+  body.position.y = 0.65;
+  g.add(body);
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8, 0.7, 2.2),
+    new THREE.MeshLambertMaterial({ color: 0x1c2733 }));
+  cabin.position.set(0, 1.35, -0.2);
+  g.add(cabin);
+  if (isPolice) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.25, 0.5),
+      new THREE.MeshBasicMaterial({ color: 0x3040ff }));
+    bar.position.set(0, 1.8, -0.2);
+    g.add(bar);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.12, 0.2, 4.42),
+      new THREE.MeshBasicMaterial({ color: 0xeeeeee }));
+    stripe.position.y = 0.95;
+    g.add(stripe);
   }
-  const state = { player, items, score: 0, lives: LIVES, level: 1, elapsed: 0, blockTimer: 0, coinTimer: 0 };
-
-  function reset() {
-    player.x = (FIELD.width - player.width) / 2;
-    player.invulnerable = 0;
-    for (const item of items) item.active = false;
-    state.score = 0;
-    state.lives = LIVES;
-    state.level = 1;
-    state.elapsed = 0;
-    state.blockTimer = BLOCK.interval;
-    state.coinTimer = COIN.interval;
+  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.35, 10);
+  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x141414 });
+  const wheels = [];
+  for (const [wx, wz] of [[-1.0, 1.45], [1.0, 1.45], [-1.0, -1.45], [1.0, -1.45]]) {
+    const w = new THREE.Mesh(wheelGeo, wheelMat);
+    w.rotation.z = Math.PI / 2;
+    w.position.set(wx, 0.42, wz);
+    g.add(w);
+    wheels.push(w);
   }
-
-  function freeItem() {
-    for (let index = 0; index < items.length; index += 1) if (!items[index].active) return items[index];
-    return null;
+  const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
+  for (const lx of [-0.7, 0.7]) {
+    const l = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.1), lightMat);
+    l.position.set(lx, 0.7, 2.22);
+    g.add(l);
   }
+  g.userData.wheels = wheels;
+  return g;
+}
 
-  function spawnBlock() {
-    const item = freeItem();
-    if (item === null) return;
-    item.active = true;
-    item.kind = KIND_BLOCK;
-    item.width = BLOCK.minWidth + random() * (BLOCK.maxWidth - BLOCK.minWidth);
-    item.height = BLOCK.height;
-    item.x = random() * (FIELD.width - item.width);
-    item.y = -item.height;
-    item.speed = BLOCK.speed + BLOCK.speedPerLevel * (state.level - 1) + random() * BLOCK.speedJitter;
-  }
+export function carColourFor(i) { return CAR_COLOURS[i % CAR_COLOURS.length]; }
 
-  function spawnCoin() {
-    const item = freeItem();
-    if (item === null) return;
-    item.active = true;
-    item.kind = KIND_COIN;
-    item.width = COIN.size;
-    item.height = COIN.size;
-    item.x = random() * (FIELD.width - item.width);
-    item.y = -item.height;
-    item.speed = COIN.speed + COIN.speedPerLevel * (state.level - 1);
-  }
+// Pedestrian mesh: capsule-ish body, head, legs that swing while walking.
+export function makePedMesh(THREE, shirt, skin) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7, 1.0, 0.4),
+    new THREE.MeshLambertMaterial({ color: shirt }));
+  body.position.y = 1.15;
+  g.add(body);
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 10, 8),
+    new THREE.MeshLambertMaterial({ color: skin }));
+  head.position.y = 1.95;
+  g.add(head);
+  const legGeo = new THREE.BoxGeometry(0.26, 0.7, 0.26);
+  const legMat = new THREE.MeshLambertMaterial({ color: 0x2a2a33 });
+  const legL = new THREE.Mesh(legGeo, legMat);
+  legL.position.set(-0.18, 0.35, 0);
+  const legR = new THREE.Mesh(legGeo, legMat);
+  legR.position.set(0.18, 0.35, 0);
+  g.add(legL); g.add(legR);
+  g.userData.legs = [legL, legR];
+  return g;
+}
 
-  function blockInterval() {
-    return Math.max(BLOCK.minInterval, BLOCK.interval * BLOCK.intervalScale ** (state.level - 1));
-  }
-
-  /**
-   * One fixed step. `direction` is -1, 0 or 1 (left, still, right). With `harmless` set (the title
-   * screen's backdrop) things fall but nothing touches the player and nothing scores.
-   */
-  function step(dt, direction, harmless) {
-    let events = 0;
-    state.elapsed += dt;
-    state.level = Math.min(LEVEL.max, 1 + Math.floor(state.elapsed / LEVEL.seconds));
-
-    player.x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * dt));
-    if (player.invulnerable > 0) player.invulnerable = Math.max(0, player.invulnerable - dt);
-
-    state.blockTimer -= dt;
-    if (state.blockTimer <= 0) {
-      spawnBlock();
-      state.blockTimer += blockInterval();
-    }
-    state.coinTimer -= dt;
-    if (state.coinTimer <= 0) {
-      spawnCoin();
-      state.coinTimer += COIN.interval + random() * COIN.intervalJitter;
-    }
-
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-      if (!item.active) continue;
-      item.y += item.speed * dt;
-      if (item.y > FIELD.groundY) {
-        item.active = false;
-        if (item.kind === KIND_BLOCK && !harmless) state.score += BLOCK.dodgePoints;
-        continue;
-      }
-      if (harmless || !overlaps(item, player)) continue;
-      if (item.kind === KIND_COIN) {
-        item.active = false;
-        state.score += COIN.points;
-        events |= EVENT_COIN;
-      } else if (player.invulnerable === 0) {
-        item.active = false;
-        state.lives -= 1;
-        player.invulnerable = PLAYER.invulnerable;
-        events |= EVENT_HIT;
-        if (state.lives === 0) {
-          events |= EVENT_OVER;
-          break;
-        }
-      }
-    }
-    return events;
-  }
-
-  reset();
-  return { state, reset, step };
+// Police helicopter: body, tail, main + tail rotors, spotlight cone.
+export function makeHeliMesh(THREE) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(2.2, 1.6, 4.6),
+    new THREE.MeshLambertMaterial({ color: 0x1a2a3a }));
+  g.add(body);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 4.5),
+    new THREE.MeshLambertMaterial({ color: 0x1a2a3a }));
+  tail.position.set(0, 0.3, -4.2);
+  g.add(tail);
+  const rotorMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+  const rotor = new THREE.Mesh(new THREE.BoxGeometry(9, 0.12, 0.5), rotorMat);
+  rotor.position.y = 1.1;
+  g.add(rotor);
+  const tailRotor = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.2, 0.4), rotorMat);
+  tailRotor.position.set(0.5, 0.4, -6.2);
+  g.add(tailRotor);
+  const spot = new THREE.Mesh(
+    new THREE.ConeGeometry(6, 26, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xfff6c0, transparent: true, opacity: 0.22, side: THREE.DoubleSide }));
+  spot.rotation.x = Math.PI;
+  spot.position.y = -14;
+  g.add(spot);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  lamp.position.set(0, -0.9, 1.5);
+  g.add(lamp);
+  g.userData.rotor = rotor;
+  g.userData.tailRotor = tailRotor;
+  g.userData.spot = spot;
+  return g;
 }
