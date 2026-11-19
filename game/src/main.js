@@ -878,6 +878,13 @@ if (IS_REACH) {
   game.startGame();
   game.run();
 } else if (IS_AUTOTEST) {
+  // Debug jump: ?autotest=1&skipTo=6 starts the playthrough at mission 7.
+  const skip = parseInt(params.get('skipTo') || '-1', 10);
+  if (skip >= 0 && skip < MISSIONS.length) {
+    game.missions.missionIdx = skip;
+    game.missions.startMission(0);
+    game.enterStage();
+  }
   game.startGame();
   game.autotest = runAutotest(game);
   game.run();
