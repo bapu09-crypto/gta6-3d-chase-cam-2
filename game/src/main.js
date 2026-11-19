@@ -357,6 +357,7 @@ export class Game {
       name: 'NADIA\'S VAN', colour: 0x3aa84c,
       isTarget: true, cruise: 12, maxSpeed: 22,
     });
+    van.condition = 250; // the escort van is the mission: it must survive police love-taps
     van.mesh = makeCarMesh(this.THREE, 0x3aa84c, false);
     van.goalNode = LOCATIONS.harbour;
     this.scene.add(van.mesh);

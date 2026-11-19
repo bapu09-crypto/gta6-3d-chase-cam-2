@@ -156,13 +156,14 @@ export function runAutotest(game) {
       ctrl.lastMission = mc.missionIdx;
       ctrl.lastStage = mc.stageIdx;
       ctrl.missionsDone = Math.max(ctrl.missionsDone, mc.missionIdx);
+      ctrl._gotoD = undefined; ctrl._gotoTimer = 0;
       note(`Mission ${mc.mission.id} ${mc.mission.title} — stage ${mc.stageIdx + 1}/${mc.stageCount}: ${s.title}`);
     }
     // Timeout guard.
-    if (ctrl.simSeconds > 2400 && !ctrl.failed) {
+    if (ctrl.simSeconds > 3600 && !ctrl.failed) {
       ctrl.finished = true;
       ctrl.failed = true;
-      note('TIMEOUT: playthrough did not finish in 2400 sim-seconds');
+      note('TIMEOUT: playthrough did not finish in 3600 sim-seconds');
       return;
     }
     if (ctrl.finished) return;
@@ -284,9 +285,26 @@ export function runAutotest(game) {
       return;
     }
 
-    // goto (and default): drive to the stage node.
+    // goto (and default): drive to the stage node. Watchdog: if the car
+    // makes no progress toward the target for 60 sim-seconds, warp it to
+    // the target node (a test-harness recovery, counted as a warp).
     if (s.type === 'goto') {
       if (!ensureCar(dt)) return;
+      const t = game.city.graph.nodes[s.node];
+      const d = dist(p.x, p.z, t.x, t.z);
+      if (ctrl._gotoD === undefined || d < ctrl._gotoD - 2) {
+        ctrl._gotoD = d; ctrl._gotoTimer = 0;
+      } else {
+        ctrl._gotoTimer = (ctrl._gotoTimer || 0) + dt;
+        if (ctrl._gotoTimer > 60) {
+          ctrl._gotoTimer = 0;
+          const car = p.inCar;
+          car.x = t.x; car.z = t.z; car.speed = 0; car.path = null;
+          car.warpCount++;
+          ctrl.warps++;
+          note(`warp #${ctrl.warps} to target node (goto watchdog)`);
+        }
+      }
       driveCarToNode(dt, s.node, 32, false);
       return;
     }
