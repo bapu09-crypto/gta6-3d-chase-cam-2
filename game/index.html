@@ -27,6 +27,13 @@
   #stars { font-size: 24px; color: #ffd23a; line-height: 1; }
   #stars.hot { color: #ff5040; }
   #banner { font-size: 13px; font-weight: 700; color: #ff8a7a; margin-top: 4px; }
+  #clock { font-size: 13px; font-weight: 700; color: #9fd8ff; margin-top: 4px; }
+  /* Right-middle, under the police panel: crew cards (driver / mechanic / lookout) */
+  #crew { position: absolute; top: 335px; right: 14px; width: 250px; font-size: 13px; }
+  .crew-head { font-weight: 800; color: #9fd8ff; letter-spacing: 1px; font-size: 12px; margin-bottom: 4px; }
+  .crew-row { display: flex; justify-content: space-between; padding: 2px 0; }
+  .crew-row .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; }
+  .crew-row span:nth-child(2) { color: #ffb36b; font-weight: 700; }
   /* Right-middle: police response */
   #police { position: absolute; top: 150px; right: 14px; width: 250px; font-size: 12px; }
   .police-head { font-weight: 800; color: #9fd8ff; margin-bottom: 4px; letter-spacing: .5px; }
@@ -43,10 +50,16 @@
   #vitals { margin-top: 8px; font-size: 12px; width: 220px; }
   .bar-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
   .bar-label { width: 52px; font-weight: 700; }
+  .bar-num { width: 30px; text-align: right; font-weight: 800; color: #fff; }
   .bar-track { flex: 1; height: 10px; background: rgba(255,255,255,.18); border-radius: 5px; overflow: hidden; }
   #health { height: 100%; background: #4cd964; width: 100%; }
   #armour { height: 100%; background: #5aa9ff; width: 50%; }
   #weapons { margin-top: 6px; font-size: 12px; color: #ffe9a8; }
+  .wslot { display: inline-block; border: 1px solid rgba(255,255,255,.28); border-radius: 4px;
+    padding: 2px 6px; margin: 2px 4px 0 0; font-size: 12px; color: #e8e0d0; }
+  .wslot.active { border-color: #ffd23a; color: #ffd23a; }
+  .wslot b { color: #9fd8ff; font-weight: 800; }
+  .wslot.active b { color: #ffd23a; }
   /* Bottom-right: speed + car + radio */
   #drive-box { position: absolute; right: 14px; bottom: 14px; text-align: right; }
   #speed { font-size: 34px; font-weight: 800; }
@@ -93,17 +106,19 @@
     <div id="wantedlabel">CLEAN</div>
     <div id="stars">☆☆☆☆☆</div>
     <div id="banner"></div>
+    <div id="clock">TIME 16:47</div>
   </div>
   <div id="police" class="panel"></div>
+  <div id="crew" class="panel"></div>
   <div id="map-box">
     <canvas id="minimap" width="220" height="220"></canvas>
     <div id="district">PLAZA CENTRAL</div>
     <div id="rank">RESPECT · ROOKIE 0 / 150</div>
     <div class="bar-track" style="width:220px"><div id="respect"></div></div>
     <div id="vitals" class="panel">
-      <div class="bar-row"><span class="bar-label">HEALTH</span><div class="bar-track"><div id="health"></div></div></div>
-      <div class="bar-row"><span class="bar-label">ARMOUR</span><div class="bar-track"><div id="armour"></div></div></div>
-      <div id="weapons">▶ FISTS ∞ · VESPER 9 60</div>
+      <div class="bar-row"><span class="bar-label">HEALTH</span><div class="bar-track"><div id="health"></div></div><span class="bar-num" id="healthnum">100</span></div>
+      <div class="bar-row"><span class="bar-label">ARMOUR</span><div class="bar-track"><div id="armour"></div></div><span class="bar-num" id="armournum">50</span></div>
+      <div id="weapons"></div>
     </div>
   </div>
   <div id="drive-box" class="panel">
@@ -143,7 +158,12 @@
 </div>
 
 <p id="status" role="status" aria-live="polite"></p>
-<script src="./vendor/three.min.js"></script>
+<script type="module">
+  // three.js r160 as an ES module (the UMD build is deprecated and prints a
+  // warning on load). Exposed on window so the game modules can use it.
+  import * as THREE from './vendor/three.module.min.js';
+  window.THREE = THREE;
+</script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>

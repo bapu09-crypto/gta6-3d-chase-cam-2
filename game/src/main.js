@@ -56,6 +56,9 @@ export class Game {
     this.district = districtAt(0, 0);
     this.now = 0;
     this.elapsed = 0;
+    // Game clock: golden hour starts at 16:47 and runs one game-minute
+    // per ten sim-seconds, so the HUD can show the time of day.
+    this.clockMinutes = 16 * 60 + 47;
     this.started = false;
     this.paused = false;
     this.over = false;
@@ -137,6 +140,14 @@ export class Game {
   pz() { return this.player.inCar ? this.player.inCar.z : this.player.z; }
   playerHeading() { return this.player.inCar ? this.player.inCar.heading : this.player.heading; }
 
+  // "HH:MM" for the HUD clock.
+  timeOfDay() {
+    const total = this.clockMinutes + Math.floor(this.now / 10);
+    const h = Math.floor(total / 60) % 24;
+    const m = total % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
   // --- world population -----------------------------------------------------
   spawnWorld() {
     const p = this.city.graph.nodes[LOCATIONS.spawn];
@@ -155,14 +166,14 @@ export class Game {
     // Parked stealable cars around the city.
     this.parkSpots = [[1, 1], [5, 1], [1, 3], [5, 5], [3, 1], [6, 4], [2, 6], [4, 2]];
     this.parkSpots.forEach(([i, j], k) => this.spawnParkedCar(i, j, k));
-    // Traffic.
-    for (let k = 0; k < 10; k++) {
+    // Traffic: a busy coastal city, not an empty grid.
+    for (let k = 0; k < 16; k++) {
       const car = makeTrafficCar(this.city, this.rng, k, this.THREE, makeCarMesh, carColourFor);
       this.scene.add(car.mesh);
       this.cars.push(car); this.traffic.push(car);
     }
     // Pedestrians.
-    for (let k = 0; k < 22; k++) this.spawnPed();
+    for (let k = 0; k < 30; k++) this.spawnPed();
   }
 
   spawnParkedCar(i, j, k) {

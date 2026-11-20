@@ -77,13 +77,25 @@ export class Hud {
   constructor(root) {
     this.el = {};
     for (const id of ['mission', 'stage', 'objective', 'next', 'police', 'stars',
-      'money', 'health', 'armour', 'weapons', 'speed', 'carname', 'carcond',
+      'money', 'health', 'armour', 'healthnum', 'armournum', 'weapons', 'speed', 'carname', 'carcond',
       'radio', 'district', 'respect', 'rank', 'dialogue', 'dlgname', 'dlgrole',
-      'dlgtext', 'banner', 'timer', 'minimap', 'portrait', 'hud', 'wantedlabel']) {
+      'dlgtext', 'banner', 'timer', 'clock', 'crew', 'minimap', 'portrait', 'hud', 'wantedlabel']) {
       this.el[id] = root.querySelector('#' + id);
     }
     this.mapCtx = this.el.minimap ? this.el.minimap.getContext('2d') : null;
     this.lastPortraitWho = null;
+    this._lastWeapons = null;
+    // Crew cards: Dario the driver, Nadia the mechanic, Tomas the lookout —
+    // the same three names the dialogue uses, with their roles on show.
+    if (this.el.crew) {
+      const crew = ['DARIO', 'NADIA', 'TOMAS'];
+      let html = '<div class="crew-head">CREW · CORALUNA</div>';
+      for (const who of crew) {
+        const c = CHARACTERS[who];
+        html += `<div class="crew-row"><span><span class="dot" style="background:${c.colour}"></span>${c.name}</span><span>${c.role}</span></div>`;
+      }
+      this.el.crew.innerHTML = html;
+    }
   }
 
   setVisible(v) { if (this.el.hud) this.el.hud.style.display = v ? 'block' : 'none'; }
@@ -109,19 +121,27 @@ export class Hud {
     this.el.stars.className = game.wanted > 0 ? 'stars hot' : 'stars';
     this.setText('wantedlabel', game.wanted > 0 ? 'WANTED' : 'CLEAN');
     this.setText('money', '$' + Math.floor(p.money).toLocaleString('en-US'));
-    this.setText('health', Math.ceil(p.health));
-    this.setText('armour', Math.ceil(p.armour));
+    // Health/armour numbers sit in their own spans beside the bars — never
+    // inside the coloured fill, where they were clipped by the track.
+    this.setText('healthnum', Math.ceil(p.health));
+    this.setText('armournum', Math.ceil(p.armour));
     const hb = this.el.health; if (hb) hb.style.width = p.health + '%';
     const ab = this.el.armour; if (ab) ab.style.width = p.armour + '%';
-    // Weapons.
+    // Time of day, golden hour onwards.
+    this.setText('clock', 'TIME ' + game.timeOfDay());
+    // Weapon slots: one box per owned weapon, name + ammo, active one lit.
     const slots = [];
     const { WEAPONS } = game;
     WEAPONS.forEach((w, i) => {
       if (!p.weaponsOwned[i]) return;
       const ammo = w.ammo === Infinity ? '∞' : (p.ammo[w.id] ?? 0);
-      slots.push(`${i === p.weaponIdx ? '▶ ' : ''}${w.name} ${ammo}`);
+      slots.push(`<span class="wslot${i === p.weaponIdx ? ' active' : ''}">${i === p.weaponIdx ? '▶ ' : ''}${w.name} <b>${ammo}</b></span>`);
     });
-    this.setText('weapons', slots.join('   ·   '));
+    const slotsHtml = slots.join('');
+    if (this._lastWeapons !== slotsHtml && this.el.weapons) {
+      this.el.weapons.innerHTML = slotsHtml;
+      this._lastWeapons = slotsHtml;
+    }
     // Car / speed.
     const car = p.inCar;
     if (car) {
@@ -201,9 +221,16 @@ export class Hud {
     ctx.fillRect(0, 0, S, S);
     const toMap = (x, z) => [S / 2 + (x - px) * (S / 2 / 110), S / 2 + (z - pz) * (S / 2 / 110)];
     // Sea to the west.
-    ctx.fillStyle = '#2a6a9a';
+    ctx.fillStyle = '#2f7fb8';
     const [sx] = toMap(-192, 0);
     if (sx > 0) ctx.fillRect(0, 0, Math.min(S, sx), S);
+    // The pier deck, so the minimap reads as a pier, not open water.
+    const pier = game.city.pier;
+    const [pax, paz] = toMap(pier.x0, pier.z0);
+    const [pbx, pbz] = toMap(pier.x1, pier.z1);
+    ctx.fillStyle = '#a8824f';
+    ctx.fillRect(Math.min(pax, pbx), Math.min(paz, pbz),
+      Math.abs(pbx - pax), Math.abs(pbz - paz));
     // Roads.
     ctx.strokeStyle = '#8a8a96';
     ctx.lineWidth = 2;

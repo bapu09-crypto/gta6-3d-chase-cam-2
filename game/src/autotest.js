@@ -6,6 +6,7 @@
 import { checkReachability } from './city.js';
 import { LOCATIONS } from './missions.js';
 import { nearestNode, findPath } from './city.js';
+import { makeFlameMesh } from './world.js';
 import { dist, clamp, angleDiff } from './util.js';
 
 const TARGET_NODES = [
@@ -352,17 +353,34 @@ export function stageShot(game, name) {
     if (s && s.who) game.missions.say(s.who, s.text, game.now);
     else if (m) game.missions.say(m.intro.who, m.intro.text, game.now);
   }
-  function setPolice(n, offsets) {
+  // Police are placed relative to where the player ACTUALLY is (car or on
+  // foot), not the on-foot coordinates, which go stale the moment Dario
+  // gets in a car — that staleness is what put the cover's units 200 m away.
+  // Offsets are [dx, dz, heading] in metres from the player; the first
+  // offset is the closest unit and always gets the RAMMING role. The
+  // helicopter is placed ahead and to the side of the chase camera, low
+  // enough to stay inside the frame, with its spotlight on.
+  function setPolice(n, offsets, heliDx, heliDz, heliY) {
     game.setWanted(n);
     game.policeUnits.forEach((u, i) => {
       const o = offsets[i % offsets.length];
-      placeCar(u.car, p.x + o[0], p.z + o[1], o[2]);
+      placeCar(u.car, game.px() + o[0], game.pz() + o[1], o[2]);
       u.role = ['RAMMING', 'FLANKING', 'SPOTLIGHT', 'FIRING', 'ROADBLOCK'][i % 5];
     });
     game.heli.active = n >= 3;
-    game.heli.x = p.x + 20; game.heli.z = p.z - 30; game.heli.y = 42;
+    game.heli.x = game.px() + (heliDx ?? -32);
+    game.heli.z = game.pz() + (heliDz ?? -24);
+    game.heli.y = heliY ?? 20;
     game.heli.mesh.visible = true;
     game.heli.mesh.position.set(game.heli.x, game.heli.y, game.heli.z);
+  }
+  // Park a few traffic cars near the player so the street reads as busy.
+  function placeTraffic(spots) {
+    game.traffic.slice(0, spots.length).forEach((car, i) => {
+      const [dx, dz, heading] = spots[i];
+      placeCar(car, game.px() + dx, game.pz() + dz, heading);
+      car.speed = 6 + i * 2;
+    });
   }
   function playerCar(name, colour) {
     const car = p.inCar || game.parked[0];
@@ -375,7 +393,8 @@ export function stageShot(game, name) {
   }
 
   if (name === 'cover') {
-    // M6: ramming the Regent on the beach boulevard, 4 stars, heli overhead.
+    // M6: ramming the Regent on the beach boulevard, 4 stars, helicopter in
+    // frame with its spotlight on, a ramming unit right behind the car.
     setMission(5, 0, 2);
     const car = playerCar('TIBURON GT-R', 0xd83a2e);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
@@ -388,13 +407,18 @@ export function stageShot(game, name) {
     p.money = 18450; game.respect = 3900;
     p.health = 72; p.armour = 55;
     p.weaponIdx = 2; p.weaponsOwned = [true, true, true, true];
-    setPolice(4, [[-30, 18, 0], [24, -14, 2.4], [-8, -34, 3.1], [44, 22, 1.2], [-52, -6, 0.5]]);
+    game.clockMinutes = 16 * 60 + 47;
+    // Closest unit 8 m behind the car (RAMMING), the rest 15–42 m out, all
+    // on the boulevard; the helicopter hangs ahead-left in the frame.
+    setPolice(4, [[7, 4, -Math.PI / 2], [-14, -6, -Math.PI / 2], [24, -5, -Math.PI / 2],
+      [-30, 5, -Math.PI / 2], [42, -4, -Math.PI / 2]], -36, -16, 16);
+    placeTraffic([[-28, 4, -Math.PI / 2], [-78, -4, -Math.PI / 2]]);
     game.missions.say('TOMAS', 'He\'s making for the pier! Ram the Regent before it reaches the water!', game.now);
     game.camYaw = 0;
   } else if (name === 'chase') {
     // M7: losing the 4-star manhunt on the boulevard.
     setMission(6, 0, 0);
-    const car = playerCar('VELOZ COMET RS', 0xd83a2e);
+    const car = playerCar('RUKAN PELO GT', 0xd83a2e);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
     // Manhunt on the z=64 boulevard, heading west.
     placeCar(car, 32, 64, -Math.PI / 2);
@@ -402,7 +426,10 @@ export function stageShot(game, name) {
     p.money = 86250; game.respect = 290;
     p.health = 88; p.armour = 40;
     p.weaponIdx = 1; p.weaponsOwned = [true, true, true, false];
-    setPolice(4, [[-26, 12, 0.4], [30, -18, 2.8], [-12, -30, 3.4], [48, 16, 1.0], [-44, -10, 0.8]]);
+    game.clockMinutes = 18 * 60 + 48;
+    setPolice(4, [[7, 4, -Math.PI / 2], [-14, -6, -Math.PI / 2], [24, -5, -Math.PI / 2],
+      [-30, 5, -Math.PI / 2], [42, -4, -Math.PI / 2]], -36, -16, 16);
+    placeTraffic([[-26, 4, -Math.PI / 2], [-64, -4, -Math.PI / 2]]);
     game.missions.say('ELENA', 'The boat sails in two minutes, Dario! Shake that chopper and get to the pier!', game.now);
     game.camYaw = 0;
   } else if (name === 'escort') {
@@ -418,27 +445,36 @@ export function stageShot(game, name) {
     p.money = 5400; game.respect = 820;
     p.health = 96; p.armour = 50;
     p.weaponIdx = 0; p.weaponsOwned = [true, true, false, false];
-    setPolice(2, [[-34, 30, 0.2], [38, -22, 2.6]]);
+    game.clockMinutes = 17 * 60 + 20;
+    // Two stars, four units, the closest 9 m behind the car.
+    setPolice(2, [[8, 4, -Math.PI / 2], [-16, -5, -Math.PI / 2],
+      [26, 4, -Math.PI / 2], [-34, 6, -Math.PI / 2]]);
+    placeTraffic([[-70, -4, -Math.PI / 2]]);
     game.missions.say('NADIA', 'Stay with the van. If a cop rams it, ram the cop back.', game.now);
     game.camYaw = 0;
   } else {
-    // finale: M8, on foot at the pier facing Vidal and two henchmen.
+    // finale: M8, the pier showdown — now a busy four-star fight, not an
+    // empty deck. Dario at the pier root so the minimap shows the harbour
+    // streets as well as the pier; Vidal 14 m ahead of him, flanked by two
+    // henchmen; the CPD storms the pier behind Dario, the helicopter hangs
+    // over the deck, and a torched car burns on the boards.
     setMission(7, 1, 0);
     if (p.inCar) p.exitCar(game.city);
     const pier = city.pier;
-    // Dario 40 m from the pier's end; Vidal 14 m ahead of him, flanked by
-    // two henchmen, so the frame reads as a showdown, not an empty deck.
-    p.x = pier.endX + 40; p.z = (pier.z0 + pier.z1) / 2;
+    p.x = pier.x1 - 18; p.z = (pier.z0 + pier.z1) / 2;
     p.heading = -Math.PI / 2;
     p.mesh.position.set(p.x, 0, p.z);
     p.money = 12400; game.respect = 2100;
     p.health = 81; p.armour = 25;
     p.weaponIdx = 1; p.weaponsOwned = [true, true, true, true];
-    game.setWanted(0);
+    game.clockMinutes = 18 * 60 + 52;
+    // Four stars: cruisers on the deck and the approach road.
+    setPolice(4, [[-6, 6, -Math.PI / 2], [10, -8, -Math.PI / 2], [-14, -10, -Math.PI / 2],
+      [16, 10, -Math.PI / 2], [-26, -6, -Math.PI / 2], [26, -6, -Math.PI / 2]], -28, -14, 13);
     game.missions.say('VIDAL', 'One last man between you and freedom, Dario. Me.', game.now);
     const boss = game.enemies[0];
     if (boss) {
-      boss.x = pier.endX + 26; boss.z = p.z;
+      boss.x = p.x - 14; boss.z = p.z;
       boss.mesh.position.set(boss.x, 0, boss.z);
     }
     // Two henchmen flank Vidal for the shot (spawnWave places them on the
@@ -447,9 +483,22 @@ export function stageShot(game, name) {
     game.spawnWave(2);
     const flanks = [p.z - 7, p.z + 7];
     game.enemies.slice(before).forEach((e, i) => {
-      e.x = pier.endX + 26; e.z = flanks[i % 2];
+      e.x = p.x - 14; e.z = flanks[i % 2];
       e.mesh.position.set(e.x, 0, e.z);
     });
+    // A burning wreck on the boards ahead of Vidal: flame cones plus a warm
+    // point light so the fire reads at dusk.
+    const wreck = game.traffic[0];
+    if (wreck) {
+      placeCar(wreck, p.x - 24, p.z + 8, -Math.PI / 2);
+      wreck.wrecked = true; wreck.condition = 0;
+      const flame = makeFlameMesh(game.THREE);
+      flame.position.set(wreck.x, 0, wreck.z);
+      game.scene.add(flame);
+      const fireLight = new game.THREE.PointLight(0xff7733, 80, 40);
+      fireLight.position.set(wreck.x, 4, wreck.z);
+      game.scene.add(fireLight);
+    }
     game.camYaw = 0;
   }
   game.updateObjective();

@@ -37,9 +37,9 @@ beacon on the pier.
   a NEXT step, and dialogue from Nadia the mechanic, Tomas the lookout, Elena the
   smuggler, and Vidal himself.
 - **HUD** — mission header + stage + objective, named-police panel, wanted stars,
-  money, health/armour bars, weapon slots, a circular minimap with route and
-  search zone, speed + car name + condition, radio station, district label and a
-  respect rank bar (Rookie → Legend of Coraluna).
+  money, health/armour bars with readable numbers, weapon slots with ammo,
+  a circular minimap with route and search zone, speed + car name + condition, radio station, district label, a respect rank bar (Rookie → Legend of Coraluna),
+  crew cards for Dario, Nadia and Tomas, and a time-of-day clock.
 - **Radio** — three procedural WebAudio stations: SOL 98.1 Island Pop,
   MAREA 104.5 Reggae Marea, NOCHE 89.3 Synthwave, plus engine hum, sirens,
   gunshots and crash sounds.
@@ -74,7 +74,7 @@ beacon on the pier.
 
 Serve `game/` with any static server (for example `node serve.ts`) and open
 `game/index.html` in desktop Chrome. No network requests: three.js is vendored
-under `game/vendor/`, all art is procedural, all sound is synthesized.
+under `game/vendor/` as an ES module, all art is procedural, all sound is synthesized.
 
 A scripted self-test plays all eight missions end to end:
 open `game/index.html?autotest=1` and watch the console for the result.
@@ -93,7 +93,9 @@ open `game/index.html?autotest=1` and watch the console for the result.
 - `game/src/audio.js` — procedural radio stations and effects (WebAudio).
 - `game/src/autotest.js` — scripted 8-mission playthrough, reachability gate, screenshot staging.
 - `game/src/util.js` — math and seeded-random helpers.
-- `game/vendor/three.min.js` — vendored three.js r160 (library, not our source).
+- `game/vendor/three.module.min.js` — vendored three.js r160 as an ES module
+  (library, not our source; the UMD build is deprecated since r150 and prints
+  a warning on load, so the module build is used instead).
 - `main.ts` — the hand-in program: copies `game/` + `screenshots/` and writes `dossier.json`.
 
 ## License

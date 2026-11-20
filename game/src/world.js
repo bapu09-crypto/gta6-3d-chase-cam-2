@@ -16,10 +16,10 @@ export function buildWorld(city, THREE) {
     color: 0xffb36b, side: THREE.BackSide, fog: false,
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
-  const sun = new THREE.DirectionalLight(0xffc27a, 2.6);
+  const sun = new THREE.DirectionalLight(0xffc27a, 3.0);
   sun.position.set(-320, 150, -180);
   scene.add(sun);
-  const hemi = new THREE.HemisphereLight(0xffd9a0, 0x3a4a6a, 0.9);
+  const hemi = new THREE.HemisphereLight(0xffd9a0, 0x3a4a6a, 1.15);
   scene.add(hemi);
   const sunBall = new THREE.Mesh(
     new THREE.SphereGeometry(26, 16, 12),
@@ -27,39 +27,40 @@ export function buildWorld(city, THREE) {
   sunBall.position.set(-640, 120, -320);
   scene.add(sunBall);
 
-  // Ground: warm sand/grass base under the whole map.
+  // Ground: bright warm sand base under the whole map.
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1400, 1400),
-    new THREE.MeshLambertMaterial({ color: 0xc9a06a }));
+    new THREE.MeshLambertMaterial({ color: 0xd9b57f }));
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(0, -0.2, 0);
   scene.add(ground);
 
-  // Sea: animated-looking blue plane west of the city.
+  // Sea: bright blue plane west of the city. It sits just below the pier
+  // deck (top y=0) so the deck stands clear of the water.
   const sea = new THREE.Mesh(
     new THREE.PlaneGeometry(400, 1400),
-    new THREE.MeshLambertMaterial({ color: 0x2a7fb8 }));
+    new THREE.MeshLambertMaterial({ color: 0x2f8fd0 }));
   sea.rotation.x = -Math.PI / 2;
-  sea.position.set(-HALF - 200, 0.05, 0);
+  sea.position.set(-HALF - 200, -0.1, 0);
   scene.add(sea);
   // Beach strip.
   const beach = new THREE.Mesh(
     new THREE.PlaneGeometry(46, 1400),
-    new THREE.MeshLambertMaterial({ color: 0xe8cf9a }));
+    new THREE.MeshLambertMaterial({ color: 0xf2dda8 }));
   beach.rotation.x = -Math.PI / 2;
   beach.position.set(-HALF - 23, 0.02, 0);
   scene.add(beach);
 
-  // City baseplate: warm asphalt-grey slab.
+  // City baseplate: light warm slab.
   const slab = new THREE.Mesh(
     new THREE.PlaneGeometry(HALF * 2 + 40, HALF * 2 + 40),
-    new THREE.MeshLambertMaterial({ color: 0x8a7a66 }));
+    new THREE.MeshLambertMaterial({ color: 0xa89478 }));
   slab.rotation.x = -Math.PI / 2;
   slab.position.set(0, 0, 0);
   scene.add(slab);
 
-  // Roads: dark strips along every graph edge, with pale centre dashes.
-  const roadMat = new THREE.MeshLambertMaterial({ color: 0x3c3c44 });
+  // Roads: light asphalt strips along every graph edge, with pale centre dashes.
+  const roadMat = new THREE.MeshLambertMaterial({ color: 0x5f5f68 });
   const dashMat = new THREE.MeshBasicMaterial({ color: 0xd8d0b8 });
   for (const [a, b] of city.graph.edges) {
     const A = city.graph.nodes[a], B = city.graph.nodes[b];
@@ -92,7 +93,7 @@ export function buildWorld(city, THREE) {
   const winMat = new THREE.MeshBasicMaterial({ color: 0xffd98a });
   for (const b of city.buildings) {
     const w = b.x1 - b.x0, d = b.z1 - b.z0;
-    const col = new THREE.Color().setHSL(b.hue, 0.45, 0.62);
+    const col = new THREE.Color().setHSL(b.hue, 0.52, 0.68);
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(w, b.h, d),
       new THREE.MeshLambertMaterial({ color: col }));
@@ -152,13 +153,33 @@ export function buildWorld(city, THREE) {
     scene.add(bulb);
   }
 
-  // The pier: wooden deck + posts + a small lighthouse beacon at the end.
-  const deckMat = new THREE.MeshLambertMaterial({ color: 0x8a6a42 });
+  // The pier: light wooden deck + posts + a small lighthouse beacon at the end.
+  // The deck top sits at y=0 so cars and people staged on it stand on the
+  // boards instead of sinking into the box.
+  const deckMat = new THREE.MeshLambertMaterial({ color: 0xa8824f });
   const deck = new THREE.Mesh(
     new THREE.BoxGeometry(96, 1.2, 24),
     deckMat);
-  deck.position.set(-HALF - 48, 0.6, -22);
+  deck.position.set(-HALF - 48, -0.6, -22);
   scene.add(deck);
+  // Crates and barrels stacked along the pier so the deck reads as a working
+  // harbour, not a flat brown plank.
+  const crateMat = new THREE.MeshLambertMaterial({ color: 0xb08a4a });
+  const barrelMat = new THREE.MeshLambertMaterial({ color: 0x3a6a8a });
+  const crateSpots = [
+    [-HALF - 14, -30, 2.2], [-HALF - 16, -30, 1.6], [-HALF - 15, -14, 1.8],
+    [-HALF - 58, -30, 2.4], [-HALF - 60, -14, 1.6], [-HALF - 82, -30, 2.0],
+  ];
+  for (const [cx, cz, s] of crateSpots) {
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), crateMat);
+    crate.position.set(cx, s / 2, cz);
+    scene.add(crate);
+  }
+  for (const [bx, bz] of [[-HALF - 30, -14], [-HALF - 72, -14], [-HALF - 44, -30]]) {
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.2, 8), barrelMat);
+    barrel.position.set(bx, 1.1, bz);
+    scene.add(barrel);
+  }
   for (let k = 0; k < 8; k++) {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 3, 6), poleMat);
     post.position.set(-HALF - 8 - k * 12, 0.4, -34);
@@ -170,12 +191,12 @@ export function buildWorld(city, THREE) {
   const beacon = new THREE.Mesh(
     new THREE.CylinderGeometry(1.2, 1.8, 9, 8),
     new THREE.MeshLambertMaterial({ color: 0xe8e8e8 }));
-  beacon.position.set(city.pier.endX, 5, city.pier.endZ);
+  beacon.position.set(city.pier.endX, 4.5, city.pier.endZ);
   scene.add(beacon);
   const beaconLight = new THREE.Mesh(
     new THREE.SphereGeometry(1.4, 8, 6),
     new THREE.MeshBasicMaterial({ color: 0xff5040 }));
-  beaconLight.position.set(city.pier.endX, 10, city.pier.endZ);
+  beaconLight.position.set(city.pier.endX, 9.4, city.pier.endZ);
   scene.add(beaconLight);
 
   // Billboards along the beach boulevard.
@@ -243,6 +264,23 @@ export function makeCarMesh(THREE, colour, isPolice) {
 }
 
 export function carColourFor(i) { return CAR_COLOURS[i % CAR_COLOURS.length]; }
+
+// Flame for a burning wreck: an outer orange cone and an inner yellow one,
+// both unlit so they read at dusk. The caller adds a warm point light.
+export function makeFlameMesh(THREE) {
+  const g = new THREE.Group();
+  const outer = new THREE.Mesh(
+    new THREE.ConeGeometry(1.6, 4.2, 8),
+    new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.9 }));
+  outer.position.y = 2.6;
+  g.add(outer);
+  const inner = new THREE.Mesh(
+    new THREE.ConeGeometry(0.9, 3.0, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.95 }));
+  inner.position.y = 2.2;
+  g.add(inner);
+  return g;
+}
 
 // Pedestrian mesh: capsule-ish body, head, legs that swing while walking.
 export function makePedMesh(THREE, shirt, skin) {
