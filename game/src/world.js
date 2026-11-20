@@ -1,18 +1,11 @@
 // world.js — builds the Coraluna three.js scene from the city layout:
-// golden-hour sun, sea and beach to the west, wet asphalt roads with long
-// streak reflections, buildings with lit windows, palms, lamps with light
-// pools, the pier, billboards and drifting dust. Also factories for cars,
-// pedestrians and the police helicopter. All art is procedural; no textures
-// are loaded from disk — the window atlas and light pools are drawn on
-// canvases at build time.
+// golden-hour sun, sea, wet asphalt, buildings, palms, lamps, pier.
+// Also factories for cars, pedestrians and the police helicopter.
 import { HALF, GRID, SPACING, ROAD_HALF } from './city.js';
 
 const CAR_COLOURS = [0xd83a2e, 0x2e6fd8, 0xe8b64c, 0xeeeeee, 0x222226, 0x3aa84c, 0xd8704c, 0x8a5fd0];
 
-// A window-pattern atlas, drawn once on a canvas: a pale facade with a
-// grid of windows, some of them lit gold. A second canvas holds only the
-// lit windows on black, for use as an emissive map so the lit windows
-// glow at golden hour while the dark ones stay dark.
+// A window-pattern atlas: a facade with lit windows, plus an emissive map.
 function makeWindowAtlas(THREE) {
   const S = 128, cols = 4, rows = 6;
   const facade = document.createElement('canvas');
@@ -62,10 +55,13 @@ export function buildWorld(city, THREE) {
   const skyGeo = new THREE.SphereGeometry(900, 24, 16);
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, fog: false, depthWrite: false,
-    uniforms: { sunDir: { value: new THREE.Vector3(-0.82, 0.28, -0.46).normalize() } },
+    uniforms: {
+      sunDir: { value: new THREE.Vector3(-0.82, 0.28, -0.46).normalize() },
+      nightMix: { value: 0 },
+    },
     vertexShader: 'varying vec3 vDir; void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: [
-      'varying vec3 vDir; uniform vec3 sunDir;',
+      'varying vec3 vDir; uniform vec3 sunDir; uniform float nightMix;',
       'void main() {',
       '  vec3 d = normalize(vDir);',
       '  vec3 horizon = vec3(1.0, 0.55, 0.22);',
@@ -75,6 +71,12 @@ export function buildWorld(city, THREE) {
       '  col = mix(col, zenith, clamp(d.y * 1.6 - 0.15, 0.0, 1.0));',
       '  float glow = pow(max(dot(d, sunDir), 0.0), 18.0);',
       '  col += vec3(1.0, 0.75, 0.35) * glow * 0.9;',
+      // Night grade: the same dome, pulled down to deep blue.
+      '  vec3 nightHorizon = vec3(0.10, 0.08, 0.22);',
+      '  vec3 nightZenith = vec3(0.02, 0.03, 0.10);',
+      '  vec3 night = mix(nightHorizon, nightZenith, clamp(d.y * 1.8, 0.0, 1.0));',
+      '  night += vec3(0.9, 0.45, 0.15) * glow * 0.12;',
+      '  col = mix(col, night, nightMix);',
       '  gl_FragColor = vec4(col, 1.0);',
       '}',
     ].join('\n'),
@@ -150,12 +152,8 @@ export function buildWorld(city, THREE) {
   slab.receiveShadow = true;
   scene.add(slab);
 
-  // Wet asphalt: near-black road with long golden streak reflections from
-  // the low sun and the lamps, plus puddle shine. A small custom shader —
-  // the standard material stays flat at grazing angles, so the streaks
-  // are drawn from the strip's own UVs: uv.x runs along the road, uv.y
-  // across it, and a sharp falloff across the width makes each reflection
-  // a long streak down the lane.
+  // Wet asphalt: near-black road with long golden streak reflections.
+  // A small custom shader draws the streaks from the strip's own UVs.
   const roadMat = new THREE.ShaderMaterial({
     uniforms: {},
     vertexShader: [
@@ -207,8 +205,7 @@ export function buildWorld(city, THREE) {
       scene.add(dash);
     }
   }
-  // Intersection pads: the same wet-asphalt shader as the strips, so a
-  // pad never reads as a black shadowed slab where a strip would shine.
+  // Intersection pads use the same wet-asphalt shader as the strips.
   const padGeo = new THREE.PlaneGeometry(ROAD_HALF * 2 + 2, ROAD_HALF * 2 + 2);
   const padMat = roadMat;
   for (const n of city.graph.nodes) {
@@ -218,9 +215,7 @@ export function buildWorld(city, THREE) {
     scene.add(pad);
   }
 
-  // Buildings: boxes with a lighter roof cap and lit windows from the
-  // window-pattern atlas, repeated to fit each facade so the windows
-  // glow warm at dusk instead of sitting as flat boxes.
+  // Buildings with lit windows from the window-pattern atlas.
   const atlas = makeWindowAtlas(THREE);
   const winMat = new THREE.MeshBasicMaterial({ color: 0xffd98a });
   for (const b of city.buildings) {
@@ -283,8 +278,7 @@ export function buildWorld(city, THREE) {
   for (const p of city.palms) scene.add(palm(p.x, p.z, 1));
   for (const t of city.plazaTrees) scene.add(palm(t.x, t.z, 1.2));
 
-  // Street lamps with warm glow spheres and a pool of light on the wet
-  // road beneath each one, so the lamps read at golden hour.
+  // Street lamps with glow spheres and pools of light on the road.
   const poleMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2e });
   const glowMat = new THREE.MeshBasicMaterial({ color: 0xffe2a0 });
   const poolTex = makePoolTexture(THREE);
@@ -320,17 +314,14 @@ export function buildWorld(city, THREE) {
   }));
   scene.add(particles);
 
-  // The pier: light wooden deck + posts + a small lighthouse beacon at the end.
-  // The deck top sits at y=0 so cars and people staged on it stand on the
-  // boards instead of sinking into the box.
+  // The pier: wooden deck, posts and a lighthouse beacon; deck top at y=0.
   const deckMat = new THREE.MeshLambertMaterial({ color: 0xa8824f });
   const deck = new THREE.Mesh(
     new THREE.BoxGeometry(96, 1.2, 24),
     deckMat);
   deck.position.set(-HALF - 48, -0.6, -22);
   scene.add(deck);
-  // Crates and barrels stacked along the pier so the deck reads as a working
-  // harbour, not a flat brown plank.
+  // Crates and barrels along the pier.
   const crateMat = new THREE.MeshLambertMaterial({ color: 0xb08a4a });
   const barrelMat = new THREE.MeshLambertMaterial({ color: 0x3a6a8a });
   const crateSpots = [
@@ -384,26 +375,34 @@ export function buildWorld(city, THREE) {
     scene.add(g);
   });
 
-  return { scene, sun, palm, clouds, particles };
+  return { scene, sun, hemi, sunBall, skyMat, palm, clouds, particles };
 }
 
-// Car mesh factory: glossy body with a clear reflective coat, cabin,
-// chrome trim, 4 wheels and headlights. Returns a Group whose .userData
-// holds the wheel meshes for spin animation.
+// Car mesh factory: glossy body, cabin, wheels, headlights. Returns a
+// Group whose .userData holds the wheel meshes for spin animation.
 export function makeCarMesh(THREE, colour, isPolice) {
   const g = new THREE.Group();
-  // The hero paint is a clearcoat physical material: high metalness, low
-  // roughness and a hard clear coat, so the low sun and the lamps draw a
-  // bright specular sweep down the bodywork instead of a flat matte face.
+  // The hero paint is a clearcoat physical material: high metalness,
+  // low roughness, hard clear coat — a bright specular sweep, not matte.
   const bodyMat = isPolice
     ? new THREE.MeshLambertMaterial({ color: 0x1a2a3a })
     : new THREE.MeshPhysicalMaterial({
       color: colour, metalness: 0.25, roughness: 0.3,
       clearcoat: 1.0, clearcoatRoughness: 0.1, envMapIntensity: 1.2,
     });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.75, 4.4), bodyMat);
-  body.position.y = 0.65;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.55, 4.5), bodyMat);
+  body.position.y = 0.55;
   g.add(body);
+  // A sloped nose and raised tail deck, so the car reads as a car from
+  // the chase camera instead of a rectangular box.
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.32, 1.1), bodyMat);
+  nose.position.set(0, 0.78, 1.95);
+  nose.rotation.x = 0.28;
+  g.add(nose);
+  const tailDeck = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.28, 0.9), bodyMat);
+  tailDeck.position.set(0, 0.82, -1.95);
+  tailDeck.rotation.x = -0.18;
+  g.add(tailDeck);
   // A gloss highlight panel along the bonnet and roof line.
   if (!isPolice) {
     const sheen = new THREE.Mesh(
@@ -419,11 +418,41 @@ export function makeCarMesh(THREE, colour, isPolice) {
     trim.position.y = 0.42;
     g.add(trim);
   }
+  // Cabin: a narrower glasshouse set back from the nose, with a sloped
+  // windscreen and a dark rear window, instead of a box on a box.
   const cabin = new THREE.Mesh(
-    new THREE.BoxGeometry(1.8, 0.7, 2.2),
+    new THREE.BoxGeometry(1.7, 0.55, 1.9),
     new THREE.MeshPhysicalMaterial({ color: 0x5a7a9a, metalness: 0.25, roughness: 0.08, clearcoat: 1.0 }));
-  cabin.position.set(0, 1.35, -0.2);
+  cabin.position.set(0, 1.12, -0.3);
   g.add(cabin);
+  const windscreen = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6, 0.06, 0.9),
+    new THREE.MeshPhysicalMaterial({ color: 0x2a3a4a, metalness: 0.4, roughness: 0.05, clearcoat: 1.0 }));
+  windscreen.position.set(0, 1.22, 0.72);
+  windscreen.rotation.x = 0.5;
+  g.add(windscreen);
+  const rearGlass = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6, 0.06, 0.7),
+    new THREE.MeshPhysicalMaterial({ color: 0x2a3a4a, metalness: 0.4, roughness: 0.05, clearcoat: 1.0 }));
+  rearGlass.position.set(0, 1.22, -1.28);
+  rearGlass.rotation.x = -0.45;
+  g.add(rearGlass);
+  // Rear wing on two short struts, and a dark front grille.
+  if (!isPolice) {
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.07, 0.45), bodyMat);
+    wing.position.set(0, 1.18, -2.15);
+    g.add(wing);
+    for (const sx of [-0.6, 0.6]) {
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.08),
+        new THREE.MeshLambertMaterial({ color: 0x141414 }));
+      strut.position.set(sx, 1.0, -2.15);
+      g.add(strut);
+    }
+  }
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 0.08),
+    new THREE.MeshLambertMaterial({ color: 0x14141a }));
+  grille.position.set(0, 0.55, 2.27);
+  g.add(grille);
   if (isPolice) {
     const bar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.25, 0.5),
       new THREE.MeshBasicMaterial({ color: 0x3040ff }));
@@ -436,6 +465,7 @@ export function makeCarMesh(THREE, colour, isPolice) {
   }
   const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.35, 10);
   const wheelMat = new THREE.MeshLambertMaterial({ color: 0x141414 });
+  const hubMat = new THREE.MeshLambertMaterial({ color: 0xc8c8d0 });
   const wheels = [];
   for (const [wx, wz] of [[-1.0, 1.45], [1.0, 1.45], [-1.0, -1.45], [1.0, -1.45]]) {
     const w = new THREE.Mesh(wheelGeo, wheelMat);
@@ -443,13 +473,30 @@ export function makeCarMesh(THREE, colour, isPolice) {
     w.position.set(wx, 0.42, wz);
     g.add(w);
     wheels.push(w);
+    // A pale hubcap on the outer face, so the wheels read as wheels and
+    // not as black discs under the bodywork.
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.38, 8), hubMat);
+    hub.rotation.z = Math.PI / 2;
+    hub.position.set(wx, 0.42, wz);
+    g.add(hub);
   }
   const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
   for (const lx of [-0.7, 0.7]) {
     const l = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.1), lightMat);
     l.position.set(lx, 0.7, 2.22);
     g.add(l);
+    // Amber indicator beside each headlight.
+    const ind = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.1),
+      new THREE.MeshBasicMaterial({ color: 0xff9a2a }));
+    ind.position.set(lx + (lx < 0 ? -0.32 : 0.32), 0.7, 2.22);
+    g.add(ind);
   }
+  // A full-width red taillight bar across the tail, so the rear of the
+  // hero car reads at a glance from the chase camera behind it.
+  const tailLight = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.32, 0.12),
+    new THREE.MeshBasicMaterial({ color: 0xff2a1a }));
+  tailLight.position.set(0, 0.78, -2.27);
+  g.add(tailLight);
   g.userData.wheels = wheels;
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;

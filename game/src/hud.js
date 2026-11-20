@@ -1,9 +1,7 @@
-// hud.js — Coraluna's dense HUD, modelled on the leader boards: mission
-// header + stage + objective + NEXT step, a named-police panel with roles and
-// distances, wanted stars, money, health/armour, weapon slots, a minimap with
-// route and search zone, speed + car name + condition, radio station, district
-// label and a respect bar, and a dialogue box with a procedural portrait.
-import { CHARACTERS } from './missions.js';
+// hud.js — Coraluna's dense HUD: mission header, police panel, stars,
+// money, health/armour, weapon slots, minimap, speed, radio, respect.
+import { CHARACTERS, MISSIONS } from './missions.js';
+import { DISTRICTS, HALF } from './city.js';
 import { dist } from './util.js';
 
 const RANK_NAMES = [
@@ -79,16 +77,14 @@ export class Hud {
     for (const id of ['mission', 'stage', 'objective', 'next', 'police', 'stars',
       'money', 'health', 'armour', 'healthnum', 'armournum', 'weapons', 'speed', 'carname', 'carcond',
       'radio', 'district', 'respect', 'rank', 'dialogue', 'dlgname', 'dlgrole',
-      'dlgtext', 'banner', 'timer', 'clock', 'crew', 'minimap', 'portrait', 'hud', 'wantedlabel']) {
+      'dlgtext', 'banner', 'timer', 'clock', 'crew', 'minimap', 'portrait', 'hud', 'wantedlabel',
+      'pause-missions', 'pause-stats', 'pause-map', 'pause-district']) {
       this.el[id] = root.querySelector('#' + id);
     }
     this.mapCtx = this.el.minimap ? this.el.minimap.getContext('2d') : null;
     this.lastPortraitWho = null;
     this._lastWeapons = null;
-    // Crew ability cards: Dario the driver, Nadia the mechanic, Tomas the
-    // lookout — each with a portrait, a usable ability, its cash cost, its
-    // key, and a live READY / cooldown readout. The portraits are drawn
-    // onto the small canvases after the rows are laid out.
+    // Crew ability cards: portrait, ability, cash cost, key, READY / cooldown.
     if (this.el.crew) {
       const crew = [
         { who: 'DARIO', ability: 'BRIBE', cost: 800, key: 'Z' },
@@ -111,6 +107,130 @@ export class Hud {
 
   setVisible(v) { if (this.el.hud) this.el.hud.style.display = v ? 'block' : 'none'; }
 
+  // The pause / map / progress screen: the eight-mission list, the
+  // player's money and respect, and a full-city map from the road lattice.
+  drawPauseScreen(game) {
+    const mc = game.missions;
+    const doneCount = mc.done ? MISSIONS.length : mc.missionIdx;
+    const rank = rankFor(game.respect);
+    if (this.el['pause-missions']) {
+      let html = '';
+      for (const m of MISSIONS) {
+        const state = m.id - 1 < doneCount ? 'DONE'
+          : m.id - 1 === doneCount ? 'NEXT' : 'LOCKED';
+        const cls = state === 'DONE' ? 'st-done' : state === 'NEXT' ? 'st-next' : 'st-locked';
+        const mark = state === 'DONE' ? '✓ ' : state === 'NEXT' ? '▶ ' : '🔒 ';
+        html += `<div class="pause-row"><span>${mark}${m.id}. ${m.title} · $${m.reward.toLocaleString('en-US')}</span>`
+          + `<span class="${cls}">${state}</span></div>`;
+      }
+      this.el['pause-missions'].innerHTML = html;
+    }
+    if (this.el['pause-stats']) {
+      const pct = Math.round((doneCount / MISSIONS.length) * 100);
+      this.el['pause-stats'].innerHTML =
+        `MONEY <b>$${Math.floor(game.player.money).toLocaleString('en-US')}</b> &nbsp;·&nbsp; `
+        + `RESPECT <span class="rank-gold">${rank.name} ${game.respect}</span><br>`
+        + `STORY ${pct}% COMPLETE · ${doneCount} OF 8 MISSIONS DONE · ${game.wanted > 0 ? game.wanted + '★ WANTED' : 'CLEAN'}`;
+    }
+    if (this.el['pause-district']) this.el['pause-district'].textContent = game.district.name + ' · ' + game.timeOfDay();
+    const cv = this.el['pause-map'];
+    if (cv) this.drawPauseMap(game, cv);
+  }
+
+  drawPauseMap(game, cv) {
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    const S = cv.width, PAD = 14;
+    // World extent: the lattice plus the sea to the west and the pier.
+    const x0 = -HALF - 110, x1 = HALF + 14, z0 = -HALF - 14, z1 = HALF + 14;
+    const sc = Math.min((S - 2 * PAD) / (x1 - x0), (S - 2 * PAD) / (z1 - z0));
+    const ox = PAD - x0 * sc, oz = PAD - z0 * sc;
+    const toMap = (x, z) => [ox + x * sc, oz + z * sc];
+    ctx.clearRect(0, 0, S, S);
+    ctx.fillStyle = 'rgba(20, 26, 34, 0.95)';
+    ctx.fillRect(0, 0, S, S);
+    // Sea to the west, then the pier deck reaching into it.
+    ctx.fillStyle = '#2f7fb8';
+    const [seaX] = toMap(-HALF, 0);
+    ctx.fillRect(0, 0, seaX, S);
+    const pier = game.city.pier;
+    const [pax, paz] = toMap(pier.x0, pier.z0);
+    const [pbx, pbz] = toMap(pier.x1, pier.z1);
+    ctx.fillStyle = '#a8824f';
+    ctx.fillRect(Math.min(pax, pbx), Math.min(paz, pbz), Math.abs(pbx - pax), Math.abs(pbz - paz));
+    // District blocks, coloured like the city data, with names.
+    ctx.font = 'bold 11px sans-serif';
+    for (const d of DISTRICTS) {
+      const r = d.region;
+      const [ax, az] = toMap(r.x0, r.z0);
+      const [bx, bz] = toMap(r.x1, r.z1);
+      ctx.fillStyle = d.colour + '55';
+      ctx.fillRect(ax, az, bx - ax, bz - az);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(d.name, ax + 5, az + 15);
+    }
+    // The 7x7 road lattice: every edge, every node.
+    ctx.strokeStyle = '#c8c8d0';
+    ctx.lineWidth = 2;
+    for (const [a, b] of game.city.graph.edges) {
+      const A = game.city.graph.nodes[a], B = game.city.graph.nodes[b];
+      const [ax, az] = toMap(A.x, A.z);
+      const [bx, bz] = toMap(B.x, B.z);
+      ctx.beginPath(); ctx.moveTo(ax, az); ctx.lineTo(bx, bz); ctx.stroke();
+    }
+    ctx.fillStyle = '#e8e8e8';
+    for (const n of game.city.graph.nodes) {
+      const [nx, nz] = toMap(n.x, n.z);
+      ctx.beginPath(); ctx.arc(nx, nz, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+    // Route to the objective, if the game has one.
+    const route = game.routeNodes;
+    if (route && route.length > 1) {
+      ctx.strokeStyle = '#ffd23a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      route.forEach((n, i) => {
+        const p = game.city.graph.nodes[n];
+        const [mx, mz] = toMap(p.x, p.z);
+        if (i === 0) ctx.moveTo(mx, mz); else ctx.lineTo(mx, mz);
+      });
+      ctx.stroke();
+    }
+    // Mission markers: a gold diamond on the next objective, green ticks
+    // on the finished missions' target spots.
+    const tgt = game.objectivePos;
+    if (tgt) {
+      const [tx, tz] = toMap(tgt.x, tgt.z);
+      ctx.fillStyle = '#ffd23a';
+      ctx.beginPath();
+      ctx.moveTo(tx, tz - 10); ctx.lineTo(tx + 8, tz); ctx.lineTo(tx, tz + 10); ctx.lineTo(tx - 8, tz);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#141414'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    // Police dots.
+    ctx.fillStyle = '#4c9fd8';
+    for (const u of game.policeUnits) {
+      const [ux, uz] = toMap(u.car.x, u.car.z);
+      ctx.beginPath(); ctx.arc(ux, uz, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    // Player arrow, rotated to the player's heading.
+    const [px, pz] = toMap(game.px(), game.pz());
+    ctx.save();
+    ctx.translate(px, pz);
+    ctx.rotate(game.playerHeading());
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(0, -12); ctx.lineTo(8, 9); ctx.lineTo(-8, 9);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#141414'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('N', S - 16, 16);
+    ctx.fillStyle = '#ffd23a';
+    ctx.fillText('CORALUNA', PAD, S - 10);
+  }
+
   update(game, now) {
     const p = game.player;
     const mc = game.missions;
@@ -132,8 +252,7 @@ export class Hud {
     this.el.stars.className = game.wanted > 0 ? 'stars hot' : 'stars';
     this.setText('wantedlabel', game.wanted > 0 ? 'WANTED' : 'CLEAN');
     this.setText('money', '$' + Math.floor(p.money).toLocaleString('en-US'));
-    // Health/armour numbers sit in their own spans beside the bars — never
-    // inside the coloured fill, where they were clipped by the track.
+    // Health/armour numbers sit beside the bars, never inside the fill.
     this.setText('healthnum', Math.ceil(p.health));
     this.setText('armournum', Math.ceil(p.armour));
     const hb = this.el.health; if (hb) hb.style.width = p.health + '%';
@@ -150,7 +269,7 @@ export class Hud {
         el.style.color = a.left > 0 ? '#ff8a7a' : '#7dff8a';
       });
     }
-    // Weapon slots: one box per owned weapon, name + ammo, active one lit.
+    // Weapon slots: one box per owned weapon, name + ammo.
     const slots = [];
     const { WEAPONS } = game;
     WEAPONS.forEach((w, i) => {
@@ -245,7 +364,7 @@ export class Hud {
     ctx.fillStyle = '#2f7fb8';
     const [sx] = toMap(-192, 0);
     if (sx > 0) ctx.fillRect(0, 0, Math.min(S, sx), S);
-    // The pier deck, so the minimap reads as a pier, not open water.
+    // The pier deck on the minimap.
     const pier = game.city.pier;
     const [pax, paz] = toMap(pier.x0, pier.z0);
     const [pbx, pbz] = toMap(pier.x1, pier.z1);

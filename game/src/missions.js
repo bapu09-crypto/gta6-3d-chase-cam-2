@@ -1,8 +1,6 @@
 // missions.js — Coraluna's story: 8 missions for Dario Fuentes, a driver
 // home after three years away, working off a debt to loan shark Marcos Vidal.
-// Every target is a road node (or the pier walkway), so every objective is
-// reachable by road. Stages carry the objective text and the NEXT step the
-// HUD shows, matching the leader boards' density.
+// Every target is a road node (or the pier walkway).
 import { dist } from './util.js';
 import { nearestNode } from './city.js';
 
@@ -195,7 +193,7 @@ export class MissionController {
   }
 }
 
-// Distance from the player (car or on foot) to the current stage target node.
+// Distance from the player to the current stage target node.
 export function stageTargetPos(game) {
   const mc = game.missions;
   const s = mc.stage;
@@ -209,8 +207,7 @@ export function stageTargetPos(game) {
     const p = game.city.graph.nodes[LOCATIONS.pierGate];
     return { x: p.x, z: p.z, node: LOCATIONS.pierGate };
   }
-  // Ram/wreck stages chase a live mission vehicle: point the minimap and
-  // the route at the nearest one so the player always sees where to go.
+  // Ram/wreck stages point the minimap at the nearest live mission vehicle.
   if (s.type === 'ram' || s.type === 'wreck') {
     let best = null, bestD = Infinity;
     for (const c of game.missionCars) {

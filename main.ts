@@ -5,6 +5,10 @@
 // in my own words so the entrypoint carries authored lines of its own.
 // Round 4 hand-in: the same dossier program, now covering the golden-hour
 // upgrade — wet asphalt, crew abilities and the filmic finish included.
+// Round 5 hand-in: the same program again, now covering the pause / map /
+// progress screen, the night chase, the reshaped hero car and the four
+// re-staged screenshots — the code below is unchanged, the game it hands
+// in is the round-5 build.
 //
 // Run it outside the grader with:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts

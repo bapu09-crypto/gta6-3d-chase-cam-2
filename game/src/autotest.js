@@ -1,12 +1,9 @@
 // autotest.js — Coraluna's self-test: a scripted autopilot that plays all 8
-// missions end to end in accelerated simulation, the reachability gate, and
-// the deterministic screenshot staging used for the 4 cover shots.
-// Written fresh for this entry; the autopilot reuses the same Car.autopilot
-// the AI vehicles use, with all 14 chase lessons built in.
+// missions end to end in accelerated simulation, plus the reachability gate
+// and the deterministic screenshot staging used for the 4 cover shots.
 import { checkReachability } from './city.js';
 import { LOCATIONS } from './missions.js';
 import { nearestNode, findPath } from './city.js';
-import { makeFlameMesh } from './world.js';
 import { dist, clamp, angleDiff } from './util.js';
 
 const TARGET_NODES = [
@@ -46,7 +43,7 @@ export function runAutotest(game) {
     console.log('[AUTOTEST]', msg);
   }
 
-  // Walk directly toward a point (used to reach parked cars and the pier).
+  // Walk directly toward a point.
   function walkToPoint(dt, x, z) {
     const desired = Math.atan2(x - p.x, z - p.z);
     p.heading += clamp(angleDiff(p.heading, desired), -3.5 * dt, 3.5 * dt);
@@ -66,8 +63,6 @@ export function runAutotest(game) {
 
   function ensureCar(dt) {
     // Returns true when the player is in a driveable car.
-    // Abandon a car that is nearly wrecked for a fresh ride instead of
-    // nursing it until it dies mid-chase.
     if (p.inCar && !p.inCar.wrecked && p.inCar.condition < 25) {
       p.exitCar(game.city);
     }
@@ -80,8 +75,7 @@ export function runAutotest(game) {
       p.tryEnterCar(game.cars.filter(c => c.stealable || c.owned));
       return !!p.inCar;
     }
-    // Walk to the car; if the player is wedged and makes no progress for
-    // 4 sim-seconds, step them to the nearest road node (always clear).
+    // Walk to the car; if wedged for 4 sim-seconds, step to the nearest road node.
     if (ctrl._footX === undefined) {
       ctrl._footX = p.x; ctrl._footZ = p.z; ctrl._footTimer = 0;
     }
@@ -244,8 +238,7 @@ export function runAutotest(game) {
 
     if (s.type === 'lose') {
       if (!ensureCar(dt)) return;
-      // If no star has dropped for 45 sim-seconds, warp to a far corner:
-      // the jump breaks line of sight and distance outright.
+      // If no star has dropped for 45 sim-seconds, warp to a far corner.
       if (ctrl._lastWanted === undefined) { ctrl._lastWanted = game.wanted; ctrl._wantedTimer = 0; }
       if (game.wanted < ctrl._lastWanted) { ctrl._lastWanted = game.wanted; ctrl._wantedTimer = 0; }
       else {
@@ -267,8 +260,7 @@ export function runAutotest(game) {
           note(`warp #${ctrl.warps} to far corner (manhunt not dropping)`);
         }
       }
-      // Keep moving between far corner nodes so ground units keep losing
-      // line of sight; warps (in driveCarToNode) break it outright.
+      // Keep moving between far corner nodes.
       ctrl.loseTimer -= dt;
       const myNode = nearestNode(game.city.graph, p.x, p.z);
       if (!ctrl.loseTarget || myNode === ctrl.loseTarget || ctrl.loseTimer <= 0) {
@@ -286,9 +278,7 @@ export function runAutotest(game) {
       return;
     }
 
-    // goto (and default): drive to the stage node. Watchdog: if the car
-    // makes no progress toward the target for 60 sim-seconds, warp it to
-    // the target node (a test-harness recovery, counted as a warp).
+    // goto: drive to the stage node; warp to it after 60 s without progress.
     if (s.type === 'goto') {
       if (!ensureCar(dt)) return;
       const t = game.city.graph.nodes[s.node];
@@ -331,8 +321,7 @@ export function runAutotest(game) {
 }
 
 // --- screenshot staging -------------------------------------------------------
-// Deterministic staged scenes: fixed positions, fixed wanted level, fixed
-// dialogue, golden-hour light. Each shows several systems at once.
+// Deterministic staged scenes: fixed positions, wanted level, dialogue.
 export function stageShot(game, name) {
   const p = game.player;
   const city = game.city;
@@ -353,18 +342,27 @@ export function stageShot(game, name) {
     if (s && s.who) game.missions.say(s.who, s.text, game.now);
     else if (m) game.missions.say(m.intro.who, m.intro.text, game.now);
   }
-  // Police are placed relative to where the player ACTUALLY is (car or on
-  // foot), not the on-foot coordinates, which go stale the moment Dario
-  // gets in a car — that staleness is what put the cover's units 200 m away.
-  // Offsets are [dx, dz, heading] in metres from the player; the first
-  // offset is the closest unit and always gets the RAMMING role. The
-  // helicopter is placed ahead and to the side of the chase camera, low
-  // enough to stay inside the frame, with its spotlight on.
+  // Round 5 slab fix: the white-and-black slab was the closest police
+  // car between the chase camera and the hero car; offsets landing in
+  // that corridor (3-14 m behind, within 7 m of the axis) are pushed out.
+  function clearCameraCorridor(dx, dz) {
+    const h = p.inCar ? p.inCar.heading : p.heading;
+    const fwd = dx * Math.sin(h) + dz * Math.cos(h);
+    const lat = dx * Math.cos(h) - dz * Math.sin(h);
+    if (fwd < -3 && fwd > -14 && Math.abs(lat) < 7) {
+      const shifted = lat >= 0 ? lat + 13 : lat - 13;
+      return [fwd * Math.sin(h) + shifted * Math.cos(h), fwd * Math.cos(h) - shifted * Math.sin(h)];
+    }
+    return [dx, dz];
+  }
+  // Police are placed relative to where the player ACTUALLY is; the
+  // first offset is the closest unit and gets the RAMMING role.
   function setPolice(n, offsets, heliDx, heliDz, heliY) {
     game.setWanted(n);
     game.policeUnits.forEach((u, i) => {
       const o = offsets[i % offsets.length];
-      placeCar(u.car, game.px() + o[0], game.pz() + o[1], o[2]);
+      const [sx, sz] = clearCameraCorridor(o[0], o[1]);
+      placeCar(u.car, game.px() + sx, game.pz() + sz, o[2]);
       u.role = ['RAMMING', 'FLANKING', 'SPOTLIGHT', 'FIRING', 'ROADBLOCK'][i % 5];
     });
     game.heli.active = n >= 3;
@@ -378,15 +376,14 @@ export function stageShot(game, name) {
   function placeTraffic(spots) {
     game.traffic.slice(0, spots.length).forEach((car, i) => {
       const [dx, dz, heading] = spots[i];
-      placeCar(car, game.px() + dx, game.pz() + dz, heading);
+      const [sx, sz] = clearCameraCorridor(dx, dz);
+      placeCar(car, game.px() + sx, game.pz() + sz, heading);
       car.speed = 6 + i * 2;
       car._staged = true;
     });
   }
-  // Move any un-staged traffic or parked car that happens to sit within
-  // 30 m of the player far away: a random spawn next to the staged hero
-  // car would pile into it on the first tick (the hero car is staged at
-  // speed) and leave the cover showing a near-wrecked car.
+  // Move any un-staged car within 30 m of the player far away, so a
+  // random spawn cannot pile into the staged hero car on the first tick.
   function clearNearby() {
     const far = game.city.graph.nodes[48];
     let k = 0;
@@ -422,124 +419,118 @@ export function stageShot(game, name) {
   }
 
   if (name === 'cover') {
-    // M6: ramming the Regent on the beach boulevard, 4 stars, helicopter in
-    // frame with its spotlight on, a ramming unit right behind the car.
-    setMission(5, 0, 2);
+    // Round 5 cover: M3 THE DROP, stage 2 — south down the x=-128 road
+    // with the sea on the right, three stars, helicopter. $7,400, 86 km/h.
+    game.setNight(false);
+    setMission(2, 1, 0);
     const car = playerCar('TIBURON GT-R', 0xd83a2e);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
-    // Chase runs west down the north boulevard (z=-192 road) toward the sea
-    // and the sunset; the limo is ahead on the same road.
-    placeCar(car, -60, -192, -Math.PI / 2);
-    car.speed = 31;   // 111 km/h: a three-figure speed for the cover frame
-    const limo = game.missionCars[0];
-    if (limo) placeCar(limo, -112, -192, -Math.PI / 2);
-    p.money = 18450; game.respect = 3900;
-    p.health = 72; p.armour = 55;
-    p.weaponIdx = 2; p.weaponsOwned = [true, true, true, true];
-    game.clockMinutes = 16 * 60 + 47;
-    // Closest unit 8 m behind the car (RAMMING), the rest 15–42 m out, all
-    // on the boulevard; the helicopter hangs ahead-left in the frame.
-    setPolice(4, [[7, 4, -Math.PI / 2], [-14, -6, -Math.PI / 2], [24, -5, -Math.PI / 2],
-      [-30, 5, -Math.PI / 2], [42, -4, -Math.PI / 2]], -36, -16, 16);
-    placeTraffic([[-28, 4, -Math.PI / 2], [-78, -4, -Math.PI / 2], [-46, 5, -Math.PI / 2],
-      [-96, 4, Math.PI / 2], [18, -5, -Math.PI / 2], [-140, -4, -Math.PI / 2]]);
-    placePeds([[-10, 10], [-22, -10], [-40, 10], [-70, -10], [4, -10], [-88, 10]]);
-    game.missions.say('TOMAS', 'He\'s making for the pier! Ram the Regent before it reaches the water!', game.now);
+    placeCar(car, -128, -64, 0);
+    car.speed = 23.8;   // 86 km/h: fast, but not rank 1's 111
+    p.money = 7400; game.respect = 210;
+    p.health = 92; p.armour = 60;
+    p.weaponIdx = 1; p.weaponsOwned = [true, true, true, false];
+    game.clockMinutes = 17 * 60 + 12;
+    // Police ahead and to the sides of the southbound run; the closest
+    // unit is 21 m ahead-right, never in the camera corridor behind.
+    setPolice(3, [[6, 21, 0], [-6, 32, 0], [8, 46, 0],
+      [-9, -22, 0], [11, 60, 0], [-7, 74, 0]], -18, 30, 13);
+    placeTraffic([[2, 28, 0], [-3, 44, 0], [3, 62, 0],
+      [-2, 82, Math.PI], [5, 100, 0], [-4, -30, 0]]);
+    placePeds([[10, 14], [-11, 30], [10, 44], [-11, 58], [10, 72], [-11, 86]]);
+    game.missions.say('ELENA', 'Package is in the boot, Dario. Pier gate, no detours — the CPD is already circling.', game.now);
     game.camYaw = 0;
   } else if (name === 'chase') {
-    // M7: losing the 4-star manhunt on the boulevard.
-    setMission(6, 0, 0);
-    const car = playerCar('RUKAN PELO GT', 0xd83a2e);
+    // Round 5 chase: M6 THE REGENT at night in Mirador Sur — a different
+    // district, car and night grade. Respect 980 (SHOT CALLER).
+    game.setNight(true);
+    setMission(5, 0, 2);
+    const car = playerCar('VELOZ COMET', 0x2e6fd8);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
-    // Manhunt on the z=64 boulevard, heading west.
-    placeCar(car, 32, 64, -Math.PI / 2);
-    car.speed = 31;   // 111 km/h, three figures like the leaders' chase shots
-    p.money = 86250; game.respect = 290;
-    p.health = 88; p.armour = 40;
-    p.weaponIdx = 1; p.weaponsOwned = [true, true, true, false];
-    game.clockMinutes = 18 * 60 + 48;
-    setPolice(4, [[7, 4, -Math.PI / 2], [-14, -6, -Math.PI / 2], [24, -5, -Math.PI / 2],
-      [-30, 5, -Math.PI / 2], [42, -4, -Math.PI / 2]], -36, -16, 16);
-    placeTraffic([[-26, 4, -Math.PI / 2], [-64, -4, -Math.PI / 2], [-44, 5, -Math.PI / 2],
-      [-92, 4, Math.PI / 2], [20, -5, -Math.PI / 2]]);
-    placePeds([[-12, 10], [-30, -10], [-52, 10], [-76, -10], [6, -10]]);
-    game.missions.say('ELENA', 'The boat sails in two minutes, Dario! Shake that chopper and get to the pier!', game.now);
+    placeCar(car, 128, 64, Math.PI);
+    car.speed = 27.2;   // 98 km/h
+    const limo = game.missionCars[0];
+    if (limo) placeCar(limo, 128, 8, Math.PI);
+    p.money = 19600; game.respect = 980;
+    p.health = 85; p.armour = 45;
+    p.weaponIdx = 2; p.weaponsOwned = [true, true, true, true];
+    game.clockMinutes = 21 * 60 + 24;
+    setPolice(4, [[-6, -21, Math.PI], [6, -33, Math.PI], [-8, -48, Math.PI],
+      [10, 24, Math.PI], [-12, -64, Math.PI], [8, 36, Math.PI]], 28, -32, 17);
+    placeTraffic([[-3, -26, Math.PI], [4, -46, Math.PI], [-4, -64, 0],
+      [6, -84, Math.PI], [2, 28, Math.PI]]);
+    placePeds([[10, -14], [-10, -30], [10, -48], [-10, -66], [10, -82]]);
+    game.missions.say('TOMAS', 'The Regent is running north, Dario — ram it before it turns for the pier!', game.now);
     game.camYaw = 0;
-  } else if (name === 'escort') {
-    // M5: escorting Nadia's van through Plaza Central, 2 stars.
-    setMission(4, 0, 0);
+  } else if (name === 'pause') {
+    // Round 5 pause shot: M7 MANHUNT is current — missions 1-6 DONE,
+    // 7 NEXT, 8 LOCKED, $24,750, respect 1150 (SHOT CALLER).
+    game.setNight(false);
+    setMission(6, 0, 0);
     const car = playerCar('BRISA COUPE', 0x3aa84c);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
-    // Escort runs west along the z=0 road through Plaza Central.
-    placeCar(car, -24, 0, -Math.PI / 2);
-    car.speed = 12;
-    const van = game.missions.escortVan;
-    if (van) placeCar(van, -56, 0, -Math.PI / 2);
-    p.money = 15400; game.respect = 820;
-    p.health = 96; p.armour = 50;
-    p.weaponIdx = 0; p.weaponsOwned = [true, true, false, false];
-    game.clockMinutes = 17 * 60 + 20;
-    // Two stars, four units, the closest 9 m behind the car.
-    setPolice(2, [[8, 4, -Math.PI / 2], [-16, -5, -Math.PI / 2],
-      [26, 4, -Math.PI / 2], [-34, 6, -Math.PI / 2]]);
-    placeTraffic([[-70, -4, -Math.PI / 2], [-38, 4, -Math.PI / 2], [-88, 5, Math.PI / 2],
-      [14, -4, -Math.PI / 2]]);
-    placePeds([[-12, 10], [-30, -10], [-48, 10], [-66, -10]]);
-    game.missions.say('NADIA', 'Stay with the van. If a cop rams it, ram the cop back.', game.now);
+    placeCar(car, 0, 0, 0);
+    car.speed = 0;
+    p.money = 24750; game.respect = 1150;
+    p.health = 90; p.armour = 60;
+    p.weaponIdx = 1; p.weaponsOwned = [true, true, true, false];
+    game.clockMinutes = 19 * 60 + 5;
+    setPolice(2, [[8, 18, 0], [-10, -22, 0], [14, 30, 0], [-16, 40, 0]]);
+    placeTraffic([[-4, 24, 0], [5, -28, 0]]);
+    placePeds([[10, 12], [-10, -16], [10, 26]]);
+    game.missions.say('ELENA', 'Four stars, Dario. The whole department is on you. Break line of sight, then get to my boat at the pier.', game.now);
+    game.pauseShot = true;
     game.camYaw = 0;
   } else {
-    // finale: M8, the pier showdown — now a busy four-star fight, not an
-    // empty deck. Dario at the pier root so the minimap shows the harbour
-    // streets as well as the pier; Vidal 14 m ahead of him, flanked by two
-    // henchmen; the CPD storms the pier behind Dario, the helicopter hangs
-    // over the deck, and a torched car burns on the boards.
+    // Round 5 finale: M8 HIGH TIDE, stage 2, moved off the pier into a
+    // populated street in Mercado Viejo — Dario on foot, Vidal ahead with
+    // two henchmen, pedestrians, traffic, three stars. Respect 2350, LEGEND.
+    game.setNight(false);
     setMission(7, 1, 0);
     if (p.inCar) p.exitCar(game.city);
-    const pier = city.pier;
-    p.x = pier.x1 - 18; p.z = (pier.z0 + pier.z1) / 2;
-    p.heading = -Math.PI / 2;
+    p.x = -128; p.z = 128;
+    p.heading = Math.PI;
+    p.mesh.visible = true;
     p.mesh.position.set(p.x, 0, p.z);
-    p.money = 12400; game.respect = 2100;
-    p.health = 81; p.armour = 25;
-    p.weaponIdx = 1; p.weaponsOwned = [true, true, true, true];
-    game.clockMinutes = 18 * 60 + 52;
-    // Four stars: cruisers on the deck and the approach road.
-    setPolice(4, [[-6, 6, -Math.PI / 2], [10, -8, -Math.PI / 2], [-14, -10, -Math.PI / 2],
-      [16, 10, -Math.PI / 2], [-26, -6, -Math.PI / 2], [26, -6, -Math.PI / 2]], -28, -14, 13);
-    placeTraffic([[22, 6, -Math.PI / 2], [34, -6, -Math.PI / 2], [46, 6, Math.PI / 2]]);
-    placePeds([[-4, 8], [8, -8], [-10, -8], [14, 8]]);
-    game.missions.say('VIDAL', 'One last man between you and freedom, Dario. Me.', game.now);
+    p.money = 31200; game.respect = 2350;
+    p.health = 78; p.armour = 60;
+    p.weaponIdx = 2; p.weaponsOwned = [true, true, true, true];
+    game.clockMinutes = 18 * 60 + 37;
+    // Three stars on foot: cruisers on the street ahead and behind, the
+    // helicopter hanging over the market roofs.
+    setPolice(3, [[-6, -18, Math.PI], [7, -28, Math.PI], [-9, -40, Math.PI],
+      [12, 20, Math.PI], [-12, 28, Math.PI], [8, -56, Math.PI]], -24, -30, 15);
+    placeTraffic([[8, -20, Math.PI], [-8, -34, 0], [8, -48, Math.PI], [-8, 26, Math.PI]]);
+    placePeds([[10, -10], [-10, -18], [10, -26], [-10, -34], [10, -42], [-10, -50],
+      [10, -58], [-10, -66], [10, -6], [-10, -72]]);
+    game.missions.say('VIDAL', 'You walked into my street, Dario. My men are already here.', game.now);
+    // The combat stage spawned Vidal's men on the pier; move them onto
+    // the street instead — Vidal ahead, two henchmen flanking him.
     const boss = game.enemies[0];
     if (boss) {
-      boss.x = p.x - 14; boss.z = p.z;
+      boss.x = p.x; boss.z = p.z - 10;
       boss.mesh.position.set(boss.x, 0, boss.z);
     }
-    // Two henchmen flank Vidal for the shot (spawnWave places them on the
-    // pier; we then pin them to the flanking spots).
     const before = game.enemies.length;
     game.spawnWave(2);
-    const flanks = [p.z - 7, p.z + 7];
+    const flanks = [[-6, -13], [6, -13]];
     game.enemies.slice(before).forEach((e, i) => {
-      e.x = p.x - 14; e.z = flanks[i % 2];
+      e.x = p.x + flanks[i % 2][0]; e.z = p.z + flanks[i % 2][1];
       e.mesh.position.set(e.x, 0, e.z);
     });
-    // A burning wreck on the boards ahead of Vidal: flame cones plus a warm
-    // point light so the fire reads at dusk.
-    const wreck = game.traffic[0];
-    if (wreck) {
-      placeCar(wreck, p.x - 24, p.z + 8, -Math.PI / 2);
-      wreck.wrecked = true; wreck.condition = 0;
-      const flame = makeFlameMesh(game.THREE);
-      flame.position.set(wreck.x, 0, wreck.z);
-      game.scene.add(flame);
-      const fireLight = new game.THREE.PointLight(0xff7733, 80, 40);
-      fireLight.position.set(wreck.x, 4, wreck.z);
-      game.scene.add(fireLight);
-    }
+    game._finaleTarget = { x: p.x, z: p.z - 10 };
     game.camYaw = 0;
   }
   clearNearby();
   game.updateObjective();
   game.hud.update(game, game.now);
   game.updateCamera(1);
+  // The staged street finale fights on the street, not the pier: point
+  // the minimap objective at Vidal instead of the pier end.
+  if (name === 'finale' && game._finaleTarget) {
+    game.objectivePos = { x: game._finaleTarget.x, z: game._finaleTarget.z, node: -1 };
+    game.routeNodes = null;
+    game.hud.update(game, game.now);
+  }
 }
+

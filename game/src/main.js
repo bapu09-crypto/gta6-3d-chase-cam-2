@@ -1,6 +1,5 @@
 // main.js — Coraluna: a 3D chase-cam open-world crime game.
-// Boots the city, the player, traffic, police and the 8-mission story, and
-// runs the game loop. All game code is written fresh for this entry.
+// Boots the city, the player, traffic, police and the 8-mission story.
 import { buildCity, districtAt, nearestNode, findPath } from './city.js';
 import { buildWorld, makeCarMesh, makePedMesh, makeHeliMesh, carColourFor } from './world.js';
 import { Car, makeTrafficCar, updateTraffic, PoliceUnit, Helicopter, POLICE_CALLSIGNS, POLICE_ROLES, CAR_NAMES, VAN_NAMES } from './vehicles.js';
@@ -23,10 +22,15 @@ export class Game {
     this.rng = makeRng(this.seed);
     this.city = buildCity(this.seed);
     this.THREE = window.THREE;
-    const { scene, clouds, particles } = buildWorld(this.city, this.THREE);
+    const { scene, clouds, particles, sun, hemi, sunBall, skyMat } = buildWorld(this.city, this.THREE);
     this.scene = scene;
     this.clouds = clouds || [];
     this.particles = particles || null;
+    this.sunLight = sun;
+    this.hemiLight = hemi;
+    this.sunBall = sunBall;
+    this.skyMat = skyMat;
+    this.night = false;
     this.camera = new this.THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 2000);
     this.renderer = new this.THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false });
     this.renderer.setSize(innerWidth, innerHeight);
@@ -61,9 +65,8 @@ export class Game {
     this.inSight = false;
     this.cooldownLeft = 0;
     this.jammerTimer = 0;   // while > 0 the police radio is jammed: no unit can see the player
-    // Crew abilities, usable in play: Dario bribes the heat down, Tomas
-    // jams the police radio, Nadia repairs the car in the field. Each has
-    // a cash cost and a cooldown; the HUD shows all three with portraits.
+    // Crew abilities, usable in play: bribe, jammer, field fix — each
+    // with a cash cost and a cooldown, shown on the HUD with portraits.
     this.crewAbilities = [
       { who: 'DARIO', name: 'BRIBE', desc: 'Heat drops 2 stars', cost: 800, cooldown: 45, left: 0, key: 'Z' },
       { who: 'TOMAS', name: 'JAMMER', desc: 'Police radio jammed 12s', cost: 1200, cooldown: 60, left: 0, key: 'X' },
@@ -73,8 +76,7 @@ export class Game {
     this.district = districtAt(0, 0);
     this.now = 0;
     this.elapsed = 0;
-    // Game clock: golden hour starts at 16:47 and runs one game-minute
-    // per ten sim-seconds, so the HUD can show the time of day.
+    // Game clock: golden hour from 16:47, one game-minute per ten sim-seconds.
     this.clockMinutes = 16 * 60 + 47;
     this.started = false;
     this.paused = false;
@@ -145,10 +147,7 @@ export class Game {
     this.log('Welcome to Coraluna. Mission 1: Homecoming.');
   }
 
-  // Use one of the three crew abilities. Each costs cash and then cools
-  // down; a bribe drops the wanted level by two stars, the jammer blinds
-  // the police radio for twelve seconds, and the field fix restores the
-  // car the player is driving to full condition.
+  // Use one of the three crew abilities (cash cost + cooldown).
   useCrewAbility(idx) {
     if (!this.started || this.paused || this.player.dead) return false;
     const a = this.crewAbilities[idx];
@@ -178,10 +177,26 @@ export class Game {
     return true;
   }
 
+  // Night grade for the night-chase screenshot: sky mixes to deep blue,
+  // sun and sky light drop, fog turns dark blue, sun ball hides.
+  setNight(on) {
+    this.night = !!on;
+    if (this.skyMat && this.skyMat.uniforms.nightMix) {
+      this.skyMat.uniforms.nightMix.value = on ? 1 : 0;
+    }
+    if (this.sunLight) this.sunLight.intensity = on ? 0.7 : 3.4;
+    if (this.hemiLight) this.hemiLight.intensity = on ? 0.35 : 1.25;
+    if (this.sunBall) this.sunBall.visible = !on;
+    if (this.scene) this.scene.fog.color.setHex(on ? 0x0a1024 : 0xff9a55);
+  }
+
   togglePause() {
     if (!this.started || this.over) return;
     this.paused = !this.paused;
     document.getElementById('pause-screen').style.display = this.paused ? 'flex' : 'none';
+    // Opening the pause screen fills in the mission list, the money and
+    // respect, and the full-city map, so the screen is never stale.
+    if (this.paused && this.hud) this.hud.drawPauseScreen(this);
   }
 
   log(msg) {
@@ -219,13 +234,13 @@ export class Game {
     // Parked stealable cars around the city.
     this.parkSpots = [[1, 1], [5, 1], [1, 3], [5, 5], [3, 1], [6, 4], [2, 6], [4, 2]];
     this.parkSpots.forEach(([i, j], k) => this.spawnParkedCar(i, j, k));
-    // Traffic: a busy coastal city, not an empty grid — denser for round 4.
+    // Traffic: a busy coastal city.
     for (let k = 0; k < 26; k++) {
       const car = makeTrafficCar(this.city, this.rng, k, this.THREE, makeCarMesh, carColourFor);
       this.scene.add(car.mesh);
       this.cars.push(car); this.traffic.push(car);
     }
-    // Pedestrians — denser for round 4.
+    // Pedestrians.
     for (let k = 0; k < 48; k++) this.spawnPed();
   }
 
@@ -243,8 +258,7 @@ export class Game {
     return car;
   }
 
-  // Keep the city supplied with rides: if fewer than 3 driveable parked
-  // cars remain, park a fresh one at a free spot.
+  // Keep at least 3 driveable parked cars in the city.
   topUpParkedCars() {
     const alive = this.parked.filter(c => !c.wrecked);
     if (alive.length >= 3) return;
@@ -346,13 +360,10 @@ export class Game {
 
   updateWanted(dt) {
     if (this.wanted === 0) { this.inSight = false; this.losTimer = 0; return; }
-    // While the jammer runs, no ground unit can report the player: the
-    // radio is dead, so line of sight is never established.
+    // While the jammer runs, no ground unit can report the player.
     const groundSight = this.jammerTimer > 0 ? false
       : this.policeUnits.some(u => this.unitSees(u));
-    // The helicopter loses the player if no ground unit has seen them for
-    // 4 seconds: it breaks off to search elsewhere instead of hovering
-    // forever, which is what makes a 4-star manhunt loseable.
+    // The helicopter loses the player after 4 s unseen and searches elsewhere.
     if (!groundSight) this.losTimer = (this.losTimer || 0) + dt;
     else this.losTimer = 0;
     if (this.losTimer > 4) {
@@ -545,8 +556,7 @@ export class Game {
       const limo = this.missionCars[0];
       if (limo) {
         this.ramCooldown = Math.max(0, this.ramCooldown - dt);
-        // Count a ram FIRST: the killing blow still counts as a hit, so a
-        // limo wrecked by the final ram is a success, not a restart.
+        // Count a ram FIRST: the killing blow still counts as a hit.
         if (limo.rammedBy && limo.rammedBy.car === p.inCar && this.ramCooldown <= 0) {
           mc.progress++;
           this.ramCooldown = 1.5;
@@ -558,8 +568,7 @@ export class Game {
             return;
           }
         }
-        // A limo wrecked before enough rams restarts the stage instead of
-        // stalling the mission forever.
+        // A limo wrecked early restarts the stage.
         if (limo.wrecked) {
           this.log('The Regent was wrecked before the job was done — the stage restarts.');
           this.enterStage();
@@ -690,9 +699,7 @@ export class Game {
       }
       car.followTarget = this.player.inCar || null;
       if (this.player.inCar) {
-        // 1 star: pursue without ramming (standoff); 2+: ram. Police never
-        // match the player's speed (matchSpeed false), so a fast driver can
-        // open a gap and lose them.
+        // 1 star: pursue without ramming; 2+: ram. Police never match speed.
         const cruise = this.wanted >= 2 ? 30 : (d < 14 ? 6 : 26);
         car.autopilot(dt, { city: this.city, cars: this.cars, now: this.now, cruise, isChase: true, matchSpeed: false });
       } else {
@@ -974,11 +981,12 @@ if (IS_REACH) {
   stageShot(game, params.get('shot') || 'cover');
   game.startGame();
   game.update(0.05);
-  // Staging safety net: the single tick can still clip the hero car
-  // against a unit that closed in, so the staged car is presented at
-  // full condition, the way the shot was staged.
+  // Staging safety net: present the staged car at full condition.
   if (game.player.inCar) game.player.inCar.condition = 100;
   game.hud.update(game, game.now);
+  // The pause shot is taken with the pause screen open, after the HUD
+  // has been filled in, so the mission list and the map are both live.
+  if (game.pauseShot) game.togglePause();
   game.renderer.render(game.scene, game.camera);
   document.title = 'SHOT-READY';
 } else {

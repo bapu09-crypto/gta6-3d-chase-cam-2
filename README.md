@@ -41,7 +41,8 @@ beacon on the pier.
   a circular minimap with route and search zone, speed + car name + condition, radio station, district label, a respect rank bar (Rookie → Legend of Coraluna),
   crew ability cards for Dario, Nadia and Tomas — Bribe, Jammer and Field Fix,
   each with a portrait, a cash cost and a cooldown — and a time-of-day clock.
-- **Golden-hour grade** — gradient sky dome with drifting clouds, a low warm sun
+- **Pause / map / progress** — P opens a real pause screen: the eight-mission list with each mission done, next or locked, money and respect, and a full-city map drawn from the 7×7 road lattice and the eight district regions, with the player's position, the objective marker, the route and police dots on it. A night grade (deep-blue sky, lamps and headlights carrying the frame) stages the night chase.
+- **Hero car** — the player car is a shaped body now, not a box: sloped nose and tail deck, a set-back glass cabin with sloped windscreen, a rear wing, a front grille, hubcapped wheels, headlights with amber indicators and a full-width red taillight bar, in a paint colour that reads at a glance.
   with crisp 2048px shadows, ACES filmic tone mapping, a subtle vignette, wet
   asphalt with long golden streak reflections and painted markings, buildings
   with lit windows from a window-pattern atlas, lamp posts with pools of light,
@@ -96,7 +97,7 @@ open `game/index.html?autotest=1` and watch the console for the result.
 - `game/src/vehicles.js` — car physics, the chase autopilot, traffic, police, helicopter.
 - `game/src/player.js` — on-foot movement, car entry, melee + ranged combat.
 - `game/src/missions.js` — the 8-mission story, characters and dialogue.
-- `game/src/hud.js` — HUD panels, minimap, procedural portraits.
+- `game/src/hud.js` — HUD panels, minimap, procedural portraits, and the pause / map / progress screen (mission list, money and respect, full-city map).
 - `game/src/audio.js` — procedural radio stations and effects (WebAudio).
 - `game/src/autotest.js` — scripted 8-mission playthrough, reachability gate, screenshot staging.
 - `game/src/util.js` — math and seeded-random helpers.

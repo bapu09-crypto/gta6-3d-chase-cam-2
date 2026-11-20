@@ -1,7 +1,5 @@
 // audio.js — Coraluna radio and effects, all WebAudio, all procedural.
-// Three stations, each a tiny step sequencer over a chord loop; engine hum,
-// sirens, gunshots and crash thuds are synthesized on the fly. Everything is
-// guarded so the game still runs where audio is unavailable (headless tests).
+// sirens, gunshots and crash thuds are synthesized on the fly.
 export const STATIONS = [
   { id: 'SOL', freq: '98.1', name: 'SOL 98.1', genre: 'Island Pop', bpm: 112,
     chords: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]], bass: [36, 33, 29, 31] },

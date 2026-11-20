@@ -1,6 +1,4 @@
 // player.js — Dario Fuentes on foot: walking, entering and stealing cars,
-// melee and pistol combat, health and armour. The player is a circle of
-// radius 0.7 m; on foot he moves on the road graph like any pedestrian.
 import { clamp, angleDiff, dist } from './util.js';
 import { nearestNode, nearestRoadPoint } from './city.js';
 
@@ -60,8 +58,7 @@ export class Player {
     const len = Math.hypot(mx, mz);
     if (len > 0) {
       mx /= len; mz /= len;
-      // Movement is camera-relative: forward is away from the chase camera,
-      // which sits behind the player's heading.
+      // Movement is camera-relative.
       const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
       const rx = Math.cos(this.heading), rz = -Math.sin(this.heading);
       const vx = fx * mz + rx * mx;
@@ -116,9 +113,7 @@ export class Player {
     this.inCar = null;
     this.onFoot = true;
     this.stealCooldown = 0.5;
-    // Never leave the player wedged against a building face: if the exit
-    // spot is inside a building's margin, snap to the nearest road point,
-    // which is always clear.
+    // Never leave the player wedged against a building: snap to the nearest road point.
     if (city && hitsBuilding(this.x, this.z, city)) {
       const rp = nearestRoadPoint(city.graph, this.x, this.z);
       if (rp) { this.x = rp.x; this.z = rp.z; }
@@ -162,8 +157,7 @@ export class Player {
     return best;
   }
 
-  // Autotest on-foot driver: walk along the road graph toward a node,
-  // shooting the nearest enemy in range. Returns true when arrived.
+  // Autotest on-foot driver: walk toward a node, shooting enemies in range.
   autoWalk(dt, city, targetNode, enemies) {
     if (this.inCar || this.dead) return false;
     const goal = city.graph.nodes[targetNode];

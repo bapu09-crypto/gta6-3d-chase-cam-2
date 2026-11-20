@@ -1,17 +1,7 @@
 // vehicles.js — car physics, the chase autopilot, traffic, police and helicopter.
-// The autopilot is built from the start around the 14 chase lessons:
-//  live targets are pursued by live position (1), targets never brake for
-//  traffic or the player and target-vs-traffic contact is a damage-free nudge
-//  (2), building damage is throttled to once per 0.5 s per vehicle (3),
-//  off-road cars recover to the nearest road, never diagonally (4), no
-//  closing-speed cap while following a live target (5), corner speed caps are
-//  applied predictively before the corner (6), chase cornering is aggressive
-//  (7), lookahead is short and off-road cars steer to the road first (8),
-//  stuck detection runs BEFORE any car-ahead wait (9), follow targets have a
-//  zero arrive radius (10), the ram threshold is low (11), close-range pursuit
-//  steers directly at the live target (12), and the reverse branch is disabled
-//  while following a live moving target (13). Lesson 14 (mission-3 southern
-//  road traffic cluster) is handled by keeping police spawns off that road.
+// The autopilot follows the 14 chase lessons (live targets, throttled
+// building damage, off-road recovery, predictive corner braking, short
+// lookahead, stuck detection first, zero arrive radius).
 import { clamp, angleDiff, dist, closestOnSeg } from './util.js';
 import { findPath as bfsPath, ROAD_HALF, distanceToRoad, nearestNode } from './city.js';
 
@@ -145,9 +135,7 @@ export class Car {
 
   damage(amount, from) {
     if (this.wrecked) return;
-    // A parked, unoccupied car is street furniture, not a target: it takes
-    // no damage from passing traffic or police. Once the player is driving
-    // it, it can be damaged and wrecked like any car.
+    // A parked, unoccupied car takes no damage from traffic or police.
     if (this.parked && !this.isPlayerCar) return;
     this.condition -= amount;
     if (this.condition <= 0) {
@@ -158,9 +146,7 @@ export class Car {
   }
 
   // --- autopilot ----------------------------------------------------------
-  // Drive toward a goal node, or follow a live target car. Returns the
-  // throttle/steer actually applied (for stuck detection by the caller).
-  // opts: { city, cars, now, dt, cruise, isChase }
+  // Drive toward a goal node, or follow a live target car.
   autopilot(dt, opts) {
     const { city, cars, now } = opts;
     const graph = city.graph;
@@ -187,8 +173,7 @@ export class Car {
     }
 
     // Stuck recovery: reverse arc, then forward arc, then (autotest) warp.
-    // Lesson 13: the reverse branch is DISABLED while following a live
-    // moving target — a moving target is always followed forward.
+    // Lesson 13: no reversing while following a live moving target.
     if (this.recoverPhase !== 0) {
       if (following && targetMoving) {
         this.recoverPhase = 0; // never reverse at a moving target
@@ -221,11 +206,8 @@ export class Car {
       this.replanTimer = 0.6;
     }
 
-    // Pure pursuit on the path polyline: find the closest point on the
-    // polyline to the car, then steer at a point LOOKAHEAD metres further
-    // along it. This never targets a node the car already passed (the bug
-    // that made a car U-turn forever between two nodes when a replan reset
-    // its progress), because the closest point is always ahead of it.
+    // Pure pursuit: steer at a point LOOKAHEAD metres along the path
+    // from the closest point on it, so the car never targets a passed node.
     let steerX, steerZ;
     let closestSeg = 0;
     if (following && dist(this.x, this.z, targetPos.x, targetPos.z) < CLOSE_RANGE) {
@@ -273,14 +255,11 @@ export class Car {
 
     // Speed control.
     let cruise = opts.cruise || 16;
-    // Match the prey's speed — but only for a chaser that is meant to catch
-    // its target (the player ramming a van or a limo). Police never match
-    // the player's speed, or a manhunt could never be lost.
+    // A chaser matches its prey's speed; police never do, so a manhunt can be lost.
     if (following && opts.matchSpeed !== false) {
       cruise = Math.max(cruise, Math.abs(this.followTarget.speed) + 4);
     }
-    // Lesson 6: predictive corner braking — look at the NEXT turn on the
-    // path (including the last node before the target) and cap speed now.
+    // Lesson 6: predictive corner braking — cap speed before the next turn.
     let cornerCap = Infinity;
     if (!following || dist(this.x, this.z, targetPos.x, targetPos.z) > CLOSE_RANGE) {
       for (let k = closestSeg; k < Math.min(this.path.length - 1, closestSeg + 2); k++) {
@@ -311,8 +290,7 @@ export class Car {
       throttle = -0.7;
     }
 
-    // Car-ahead check (only AFTER stuck detection, lesson 9): slow for a
-    // stopped car directly ahead, but never for a live follow target.
+    // Car-ahead check (after stuck detection): slow for a stopped car ahead.
     if (!following) {
       for (const other of cars) {
         if (other === this || other.wrecked) continue;

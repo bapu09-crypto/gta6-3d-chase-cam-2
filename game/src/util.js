@@ -1,5 +1,4 @@
-// util.js — small math + seeded-random helpers shared by every Coraluna module.
-// Written fresh for the Coraluna build; no code is copied from any other entry.
+// util.js — small math + seeded-random helpers shared by every module.
 export function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 export function lerp(a, b, t) { return a + (b - a) * t; }
 export function dist2(ax, az, bx, bz) { const dx = bx - ax, dz = bz - az; return dx * dx + dz * dz; }

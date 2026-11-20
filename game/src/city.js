@@ -1,9 +1,6 @@
-// city.js — Coraluna: the road graph, districts, buildings and reachability checks.
+// city.js — Coraluna: the road graph, districts, buildings and reachability.
 // The city is a 7x7 lattice of intersections (49 nodes) with a 64 m spacing.
-// Every mission target sits on a road node or on a road centreline, never inside
-// a block and never in the sea, so every objective is reachable by road.
-// West of the lattice is the sea (x < -192); a pier reaches out from the
-// harbour node at the north-west corner.
+// Every mission target sits on a road node or a road centreline.
 import { makeRng, pick, dist, segHitsBox } from './util.js';
 
 export const GRID = 7;            // nodes per side
@@ -40,7 +37,7 @@ export function nodePos(n) {
 }
 export function nodeAt(i, j) { return nodeIndex(i, j); }
 
-// Build the road graph: nodes + undirected edges between orthogonal neighbours.
+// Build the road graph.
 export function buildGraph() {
   const nodes = [];
   for (let n = 0; n < GRID * GRID; n++) nodes.push(nodePos(n));
@@ -125,9 +122,7 @@ export function distanceToRoad(graph, x, z) {
   return best;
 }
 
-// Buildings: one or two boxes per city block, always inset from the roads so
-// cars can never be trapped in a gap, and never overlapping a road centreline.
-// Blocks are indexed by (bi, bj) with bi, bj in 0..5, between node rows.
+// Buildings: one or two boxes per city block, inset from the roads.
 export function buildCity(seed) {
   const rng = makeRng(seed);
   const graph = buildGraph();
@@ -181,8 +176,7 @@ export function buildCity(seed) {
   return { graph, buildings, palms, lamps, plazaTrees, pier, seed };
 }
 
-// Reachability gate: BFS from spawn over the road graph; every node reachable,
-// every mission target node reachable, no building overlapping a road centreline.
+// Reachability gate: BFS from spawn; every node and target reachable.
 export function checkReachability(city, targetNodes) {
   const g = city.graph;
   const seen = new Array(g.nodes.length).fill(false);

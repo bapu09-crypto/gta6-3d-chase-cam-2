@@ -33,7 +33,7 @@
   #clock { font-size: 13px; font-weight: 700; color: #9fd8ff; margin-top: 4px; }
   /* Right-middle, under the police panel: crew ability cards (portrait,
      ability, cash cost, key, READY / cooldown) */
-  #crew { position: absolute; top: 335px; right: 14px; width: 272px; font-size: 13px; }
+  #crew { position: absolute; top: 300px; right: 14px; width: 272px; font-size: 13px; }
   .crew-head { font-weight: 800; color: #9fd8ff; letter-spacing: 1px; font-size: 12px; margin-bottom: 4px; }
   .crew-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
   .crew-portrait { width: 36px; height: 36px; border-radius: 6px; border: 1px solid #ffd23a; flex: none; }
@@ -94,7 +94,32 @@
     background: #ffd23a; color: #221100; }
   .overlay button:hover { background: #ffe27a; }
   .controls { font-size: 14px; color: #cfe8ff; margin-top: 14px; line-height: 1.7; }
-  #pause-screen { display: none; }
+  #pause-screen { display: none; justify-content: flex-start; padding-top: 8px; }
+  /* Round 5 pause / map / progress screen: a real screen, not a bare
+     PAUSED label — mission list + money/respect on the left, a full-city
+     map drawn from the road lattice on the right. */
+  #pause-screen .pause-grid { display: flex; gap: 16px; align-items: stretch;
+    max-width: 1080px; width: 96%; text-align: left; margin-top: 6px; }
+  #pause-screen .pause-col { background: rgba(12,16,24,.78); border: 1px solid rgba(255,255,255,.18);
+    border-radius: 10px; padding: 10px 14px; }
+  #pause-col-list { flex: 1 1 460px; }
+  #pause-col-map { flex: 0 0 440px; }
+  #pause-screen h1 { font-size: 32px; }
+  #pause-screen h2 { margin: 2px 0 6px; }
+  #pause-screen button { margin-top: 10px; padding: 8px 28px; font-size: 17px; }
+  .pause-head { font-weight: 800; color: #9fd8ff; letter-spacing: 1px; font-size: 13px; margin-bottom: 8px; }
+  .pause-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,.08); font-size: 15px; }
+  .pause-row .st-done { color: #7dff8a; font-weight: 800; }
+  .pause-row .st-next { color: #ffd23a; font-weight: 800; }
+  .pause-row .st-locked { color: #8a8a96; font-weight: 800; }
+  #pause-stats { font-size: 16px; line-height: 1.7; margin-top: 10px; color: #e8e0d0; }
+  #pause-stats b { color: #7dff8a; }
+  #pause-stats .rank-gold { color: #ffd23a; font-weight: 800; }
+  #pause-map { width: 404px; height: 404px; border-radius: 8px; border: 2px solid rgba(255,255,255,.35);
+    background: rgba(12,16,24,.85); display: block; }
+  #pause-district { font-size: 14px; font-weight: 800; color: #ffd23a; margin-top: 8px; }
+  .pause-legend { font-size: 12px; color: #cfe8ff; margin-top: 4px; line-height: 1.6; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>
 </head>
@@ -164,6 +189,19 @@
 <div id="pause-screen" class="overlay">
   <h1>PAUSED</h1>
   <h2>Coraluna waits for no one — except right now.</h2>
+  <div class="pause-grid">
+    <div id="pause-col-list" class="pause-col">
+      <div class="pause-head">STORY PROGRESS · 8 MISSIONS</div>
+      <div id="pause-missions"></div>
+      <div id="pause-stats"></div>
+    </div>
+    <div id="pause-col-map" class="pause-col">
+      <div class="pause-head">MAP OF CORALUNA · 8 DISTRICTS</div>
+      <canvas id="pause-map" width="404" height="404"></canvas>
+      <div id="pause-district">PLAZA CENTRAL</div>
+      <div class="pause-legend">WHITE ARROW you &nbsp;·&nbsp; GOLD DIAMOND next objective &nbsp;·&nbsp; BLUE DOTS police &nbsp;·&nbsp; GREEN tick mission done</div>
+    </div>
+  </div>
   <button id="resume-btn">RESUME</button>
 </div>
 
