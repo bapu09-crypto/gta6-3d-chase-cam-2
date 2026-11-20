@@ -9,6 +9,10 @@
 // progress screen, the night chase, the reshaped hero car and the four
 // re-staged screenshots — the code below is unchanged, the game it hands
 // in is the round-5 build.
+// Round 6 hand-in: the same program again, now covering the mid-fight
+// finale staging, the brighter night chase, the polished pause map and
+// the unclipped police panel — the code below is unchanged, the game it
+// hands in is the round-6 build.
 //
 // Run it outside the grader with:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts

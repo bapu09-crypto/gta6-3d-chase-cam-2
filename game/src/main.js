@@ -1,5 +1,4 @@
 // main.js — Coraluna: a 3D chase-cam open-world crime game.
-// Boots the city, the player, traffic, police and the 8-mission story.
 import { buildCity, districtAt, nearestNode, findPath } from './city.js';
 import { buildWorld, makeCarMesh, makePedMesh, makeHeliMesh, carColourFor } from './world.js';
 import { Car, makeTrafficCar, updateTraffic, PoliceUnit, Helicopter, POLICE_CALLSIGNS, POLICE_ROLES, CAR_NAMES, VAN_NAMES } from './vehicles.js';
@@ -35,8 +34,6 @@ export class Game {
     this.renderer = new this.THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false });
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
-    // Filmic finish: ACES-style tone mapping with a warm exposure, and a
-    // high-resolution shadow map so the low sun draws crisp shadows.
     this.renderer.toneMapping = this.THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.18;
     this.renderer.shadowMap.enabled = true;
@@ -65,8 +62,6 @@ export class Game {
     this.inSight = false;
     this.cooldownLeft = 0;
     this.jammerTimer = 0;   // while > 0 the police radio is jammed: no unit can see the player
-    // Crew abilities, usable in play: bribe, jammer, field fix — each
-    // with a cash cost and a cooldown, shown on the HUD with portraits.
     this.crewAbilities = [
       { who: 'DARIO', name: 'BRIBE', desc: 'Heat drops 2 stars', cost: 800, cooldown: 45, left: 0, key: 'Z' },
       { who: 'TOMAS', name: 'JAMMER', desc: 'Police radio jammed 12s', cost: 1200, cooldown: 60, left: 0, key: 'X' },
@@ -76,7 +71,6 @@ export class Game {
     this.district = districtAt(0, 0);
     this.now = 0;
     this.elapsed = 0;
-    // Game clock: golden hour from 16:47, one game-minute per ten sim-seconds.
     this.clockMinutes = 16 * 60 + 47;
     this.started = false;
     this.paused = false;
@@ -102,7 +96,6 @@ export class Game {
     this.updateObjective();
   }
 
-  // --- setup ---------------------------------------------------------------
   setupInput() {
     addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
@@ -147,7 +140,6 @@ export class Game {
     this.log('Welcome to Coraluna. Mission 1: Homecoming.');
   }
 
-  // Use one of the three crew abilities (cash cost + cooldown).
   useCrewAbility(idx) {
     if (!this.started || this.paused || this.player.dead) return false;
     const a = this.crewAbilities[idx];
@@ -177,15 +169,13 @@ export class Game {
     return true;
   }
 
-  // Night grade for the night-chase screenshot: sky mixes to deep blue,
-  // sun and sky light drop, fog turns dark blue, sun ball hides.
   setNight(on) {
     this.night = !!on;
     if (this.skyMat && this.skyMat.uniforms.nightMix) {
       this.skyMat.uniforms.nightMix.value = on ? 1 : 0;
     }
-    if (this.sunLight) this.sunLight.intensity = on ? 0.7 : 3.4;
-    if (this.hemiLight) this.hemiLight.intensity = on ? 0.35 : 1.25;
+    if (this.sunLight) this.sunLight.intensity = on ? 1.05 : 3.4;
+    if (this.hemiLight) this.hemiLight.intensity = on ? 0.5 : 1.25;
     if (this.sunBall) this.sunBall.visible = !on;
     if (this.scene) this.scene.fog.color.setHex(on ? 0x0a1024 : 0xff9a55);
   }
@@ -194,8 +184,6 @@ export class Game {
     if (!this.started || this.over) return;
     this.paused = !this.paused;
     document.getElementById('pause-screen').style.display = this.paused ? 'flex' : 'none';
-    // Opening the pause screen fills in the mission list, the money and
-    // respect, and the full-city map, so the screen is never stale.
     if (this.paused && this.hud) this.hud.drawPauseScreen(this);
   }
 
@@ -208,7 +196,6 @@ export class Game {
   pz() { return this.player.inCar ? this.player.inCar.z : this.player.z; }
   playerHeading() { return this.player.inCar ? this.player.inCar.heading : this.player.heading; }
 
-  // "HH:MM" for the HUD clock.
   timeOfDay() {
     const total = this.clockMinutes + Math.floor(this.now / 10);
     const h = Math.floor(total / 60) % 24;
@@ -216,10 +203,8 @@ export class Game {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
-  // --- world population -----------------------------------------------------
   spawnWorld() {
     const p = this.city.graph.nodes[LOCATIONS.spawn];
-    // The player's own car, parked at spawn.
     const own = new Car({
       x: p.x + 6, z: p.z + 4, heading: 0,
       name: 'BRISA COUPE', colour: 0x3aa84c, maxSpeed: 34,
@@ -231,16 +216,13 @@ export class Game {
     this.player.x = p.x; this.player.z = p.z;
     this.player.heading = 0;
     this.player.inCar = own; own.isPlayerCar = true; this.player.onFoot = false;
-    // Parked stealable cars around the city.
     this.parkSpots = [[1, 1], [5, 1], [1, 3], [5, 5], [3, 1], [6, 4], [2, 6], [4, 2]];
     this.parkSpots.forEach(([i, j], k) => this.spawnParkedCar(i, j, k));
-    // Traffic: a busy coastal city.
     for (let k = 0; k < 26; k++) {
       const car = makeTrafficCar(this.city, this.rng, k, this.THREE, makeCarMesh, carColourFor);
       this.scene.add(car.mesh);
       this.cars.push(car); this.traffic.push(car);
     }
-    // Pedestrians.
     for (let k = 0; k < 48; k++) this.spawnPed();
   }
 
@@ -258,7 +240,6 @@ export class Game {
     return car;
   }
 
-  // Keep at least 3 driveable parked cars in the city.
   topUpParkedCars() {
     const alive = this.parked.filter(c => !c.wrecked);
     if (alive.length >= 3) return;
@@ -289,7 +270,6 @@ export class Game {
     return ped;
   }
 
-  // --- police / wanted ------------------------------------------------------
   setWanted(n) {
     n = clamp(n, 0, 5);
     if (n === this.wanted) return;
@@ -312,8 +292,6 @@ export class Game {
 
   spawnPoliceUnit() {
     const idx = this.policeUnits.length;
-    // Spawn at a road node 60-110 m from the player, off the southern
-    // market road used by mission 3 (lesson 14).
     let best = null, bestScore = -1;
     for (let tries = 0; tries < 12; tries++) {
       const n = Math.floor(this.rng() * this.city.graph.nodes.length);
@@ -346,7 +324,6 @@ export class Game {
     this.missionCars = this.missionCars.filter(c => c !== car);
   }
 
-  // Line of sight from a police unit to the player (distance + buildings).
   unitSees(unit) {
     const d = unit.distanceTo(this.px(), this.pz());
     if (d > 110) return false;
@@ -360,10 +337,8 @@ export class Game {
 
   updateWanted(dt) {
     if (this.wanted === 0) { this.inSight = false; this.losTimer = 0; return; }
-    // While the jammer runs, no ground unit can report the player.
     const groundSight = this.jammerTimer > 0 ? false
       : this.policeUnits.some(u => this.unitSees(u));
-    // The helicopter loses the player after 4 s unseen and searches elsewhere.
     if (!groundSight) this.losTimer = (this.losTimer || 0) + dt;
     else this.losTimer = 0;
     if (this.losTimer > 4) {
@@ -390,11 +365,9 @@ export class Game {
     }
   }
 
-  // --- missions --------------------------------------------------------------
   enterStage() {
     const s = this.missions.stage;
     if (!s) return;
-    // Clear previous stage vehicles.
     for (const c of [...this.missionCars]) this.removeCar(c);
     this.missionCars = [];
     this.enemies = [];
@@ -460,7 +433,6 @@ export class Game {
   }
 
   startCombatStage() {
-    // Dario goes to the pier on foot for the finale.
     const pier = this.city.pier;
     if (this.player.inCar) this.player.exitCar(this.city);
     this.player.x = pier.x1 - 6;
@@ -556,7 +528,6 @@ export class Game {
       const limo = this.missionCars[0];
       if (limo) {
         this.ramCooldown = Math.max(0, this.ramCooldown - dt);
-        // Count a ram FIRST: the killing blow still counts as a hit.
         if (limo.rammedBy && limo.rammedBy.car === p.inCar && this.ramCooldown <= 0) {
           mc.progress++;
           this.ramCooldown = 1.5;
@@ -568,7 +539,6 @@ export class Game {
             return;
           }
         }
-        // A limo wrecked early restarts the stage.
         if (limo.wrecked) {
           this.log('The Regent was wrecked before the job was done — the stage restarts.');
           this.enterStage();
@@ -614,7 +584,6 @@ export class Game {
     }
   }
 
-  // --- per-frame update ------------------------------------------------------
   toggleCar() {
     if (!this.started || this.paused || this.player.dead) return;
     if (this.player.inCar) {
@@ -635,7 +604,6 @@ export class Game {
     p.update(dt);
     this.ramCooldown = Math.max(0, this.ramCooldown - dt);
 
-    // --- player input / autotest driver ---
     if (this.autotest) {
       this.autotest.drive(dt);
     } else if (this.started && !this.paused && !p.dead) {
@@ -659,7 +627,6 @@ export class Game {
           right: !!(k.KeyD || k.ArrowRight),
           sprint: !!k.ShiftLeft,
         };
-        // A/D turn the player on foot.
         if (input.left) p.heading += 2.4 * dt;
         if (input.right) p.heading -= 2.4 * dt;
         p.stepOnFoot(dt, input, this.city);
@@ -670,7 +637,6 @@ export class Game {
       }
     }
 
-    // --- cars ---
     for (const car of [...this.cars]) {
       if (car === p.inCar) continue;
       if (this.traffic.includes(car)) {
@@ -678,18 +644,14 @@ export class Game {
       } else if (this.missionCars.includes(car)) {
         this.updateMissionCar(car, dt);
       } else if (car.parked) {
-        // Parked cars sit still.
       }
       car.syncMesh();
     }
     if (p.inCar) p.inCar.syncMesh();
 
-    // --- police ---
     for (const u of this.policeUnits) {
       const car = u.car;
       const d = u.distanceTo(this.px(), this.pz());
-      // Units that fall far behind respawn closer — except during the
-      // manhunt-lose stage, where falling behind is the whole point.
       const losing = this.missions.stage && this.missions.stage.type === 'lose';
       if (d > 320 && !losing) {
         const n = nearestNode(this.city.graph, this.px(), this.pz());
@@ -699,11 +661,9 @@ export class Game {
       }
       car.followTarget = this.player.inCar || null;
       if (this.player.inCar) {
-        // 1 star: pursue without ramming; 2+: ram. Police never match speed.
         const cruise = this.wanted >= 2 ? 30 : (d < 14 ? 6 : 26);
         car.autopilot(dt, { city: this.city, cars: this.cars, now: this.now, cruise, isChase: true, matchSpeed: false });
       } else {
-        // On foot: drive up and stop near the player.
         car.followTarget = null;
         car.goalNode = nearestNode(this.city.graph, this.px(), this.pz());
         car.autopilot(dt, { city: this.city, cars: this.cars, now: this.now, cruise: 20, isChase: false });
@@ -716,10 +676,8 @@ export class Game {
     }
     this.heli.update(dt, this.px(), this.pz(), this.now);
     this.updateWanted(dt);
-    // Crew ability cooldowns tick down, and the jammer window runs out.
     for (const a of this.crewAbilities) a.left = Math.max(0, a.left - dt);
     this.jammerTimer = Math.max(0, this.jammerTimer - dt);
-    // The sky drifts: clouds slide slowly east, dust hangs and sways.
     for (const c of this.clouds) {
       c.position.x += dt * 0.7;
       if (c.position.x > 430) c.position.x = -430;
@@ -729,13 +687,10 @@ export class Game {
       this.particles.position.z = Math.cos(this.now * 0.03) * 8;
     }
 
-    // --- pedestrians ---
     this.updatePeds(dt);
 
-    // --- enemies ---
     this.updateEnemies(dt);
 
-    // --- missions, objective, HUD ---
     this.checkMission(dt);
     if (Math.floor(this.elapsed * 2) !== Math.floor((this.elapsed - dt) * 2)) {
       this.updateObjective();
@@ -744,7 +699,6 @@ export class Game {
     if (p.inCar) this.radio.setEngine(Math.abs(p.inCar.speed) * 3.6, true);
     else this.radio.setEngine(0, false);
 
-    // --- death / respawn ---
     if (p.dead) {
       this.deathTimer += dt;
       if (this.deathTimer > 2.5) {
@@ -763,14 +717,11 @@ export class Game {
       }
     }
 
-    // --- save ---
     this.saveTimer += dt;
     if (this.saveTimer > 30) { this.saveTimer = 0; this.saveGame(); }
-    // Keep parked rides available in the city.
     this.parkTopUpTimer = (this.parkTopUpTimer || 0) + dt;
     if (this.parkTopUpTimer > 5) { this.parkTopUpTimer = 0; this.topUpParkedCars(); }
 
-    // --- camera + render ---
     this.updateCamera(dt);
     this.hud.update(this, this.now);
   }
@@ -780,7 +731,6 @@ export class Game {
     if (!s) return;
     if (car.wrecked) return;
     if (s.type === 'wreck') {
-      // Courier vans loop their route and never brake for traffic (lesson 2).
       const goal = this.city.graph.nodes[car.goalNode];
       if (dist(car.x, car.z, goal.x, goal.z) < 10) {
         car.loopIdx = (car.loopIdx + 1) % car.loop.length;
@@ -831,7 +781,6 @@ export class Game {
         if (legs[0]) legs[0].rotation.x = Math.sin(ped.phase) * 0.5;
         if (legs[1]) legs[1].rotation.x = -Math.sin(ped.phase) * 0.5;
       }
-      // Cars hitting pedestrians: they go down, heat rises.
       for (const car of this.cars) {
         if (car.wrecked || Math.abs(car.speed) < 3) continue;
         if (dist(car.x, car.z, ped.x, ped.z) < 2.4) {
@@ -888,8 +837,6 @@ export class Game {
     const p = this.player;
     const heading = this.playerHeading() + this.camYaw;
     const px = this.px(), pz = this.pz();
-    // The chase camera sits close behind the hero car in round 4, so the
-    // glossy car fills the frame the way the leaders' does.
     const back = p.inCar ? 9.5 : 8;
     const height = p.inCar ? 4.2 : 3.4;
     const tx = px - Math.sin(heading) * back;
@@ -901,7 +848,6 @@ export class Game {
     this.camera.lookAt(px + Math.sin(heading) * 6, 1.6, pz + Math.cos(heading) * 6);
   }
 
-  // --- save / load ------------------------------------------------------------
   saveGame() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
@@ -929,7 +875,6 @@ export class Game {
     } catch (e) { /* corrupt save: start fresh */ }
   }
 
-  // --- main loop ----------------------------------------------------------------
   run() {
     let last = performance.now();
     let frame = 0;
@@ -938,7 +883,6 @@ export class Game {
       last = t;
       frame++;
       if (this.autotest) {
-        // Accelerated simulation: several fixed steps per frame.
         const steps = 10;
         for (let i = 0; i < steps; i++) this.update(1 / 30);
         if (frame % 12 === 0) this.renderer.render(this.scene, this.camera);
@@ -958,7 +902,6 @@ export class Game {
 
 function N_(i, j) { return j * 7 + i; }
 
-// --- boot ----------------------------------------------------------------------
 const game = new Game();
 window.__game = game;
 if (IS_REACH) {
@@ -967,7 +910,6 @@ if (IS_REACH) {
   game.startGame();
   game.run();
 } else if (IS_AUTOTEST) {
-  // Debug jump: ?autotest=1&skipTo=6 starts the playthrough at mission 7.
   const skip = parseInt(params.get('skipTo') || '-1', 10);
   if (skip >= 0 && skip < MISSIONS.length) {
     game.missions.missionIdx = skip;
@@ -981,11 +923,8 @@ if (IS_REACH) {
   stageShot(game, params.get('shot') || 'cover');
   game.startGame();
   game.update(0.05);
-  // Staging safety net: present the staged car at full condition.
   if (game.player.inCar) game.player.inCar.condition = 100;
   game.hud.update(game, game.now);
-  // The pause shot is taken with the pause screen open, after the HUD
-  // has been filled in, so the mission list and the map are both live.
   if (game.pauseShot) game.togglePause();
   game.renderer.render(game.scene, game.camera);
   document.title = 'SHOT-READY';

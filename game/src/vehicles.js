@@ -1,7 +1,4 @@
 // vehicles.js — car physics, the chase autopilot, traffic, police and helicopter.
-// The autopilot follows the 14 chase lessons (live targets, throttled
-// building damage, off-road recovery, predictive corner braking, short
-// lookahead, stuck detection first, zero arrive radius).
 import { clamp, angleDiff, dist, closestOnSeg } from './util.js';
 import { findPath as bfsPath, ROAD_HALF, distanceToRoad, nearestNode } from './city.js';
 
@@ -51,8 +48,6 @@ export class Car {
     this.cruise = opts.cruise || 0; // target cruise speed for AI traffic/targets
   }
 
-  // --- physics step -------------------------------------------------------
-  // throttle in [-1,1] (negative = brake/reverse), steerTarget in [-1,1].
   step(dt, throttle, steerTarget, city, cars, now) {
     if (this.wrecked) { this.speed *= Math.max(0, 1 - dt * 2); return; }
     const steerRate = 3.2;
@@ -87,7 +82,6 @@ export class Car {
         const push = this.radius - d;
         this.x += (dx / d) * push;
         this.z += (dz / d) * push;
-        // Lesson 3: building-hit damage throttled, not every frame.
         if (now - this.lastBuildingHit > BUILDING_HIT_GAP) {
           this.lastBuildingHit = now;
           const impact = Math.abs(this.speed);
@@ -116,7 +110,6 @@ export class Car {
         this.x -= ux * push; this.z -= uz * push;
         other.x += ux * push; other.z += uz * push;
         const rel = Math.abs(this.speed - other.speed);
-        // Lesson 2: target-vs-traffic contact is a damage-free nudge.
         const involvesPlayerOrPolice =
           this.isPlayerCar || other.isPlayerCar || this.isPolice || other.isPolice;
         if (rel > RAM_SPEED && involvesPlayerOrPolice) {
@@ -126,7 +119,6 @@ export class Car {
           this.rammedBy = { car: other, relSpeed: rel };
           other.rammedBy = { car: this, relSpeed: rel };
         } else if (rel > 1) {
-          // Nudge: both lose a little speed, no damage.
           this.speed *= 0.92; other.speed *= 0.92;
         }
       }
@@ -135,7 +127,6 @@ export class Car {
 
   damage(amount, from) {
     if (this.wrecked) return;
-    // A parked, unoccupied car takes no damage from traffic or police.
     if (this.parked && !this.isPlayerCar) return;
     this.condition -= amount;
     if (this.condition <= 0) {
@@ -145,8 +136,6 @@ export class Car {
     }
   }
 
-  // --- autopilot ----------------------------------------------------------
-  // Drive toward a goal node, or follow a live target car.
   autopilot(dt, opts) {
     const { city, cars, now } = opts;
     const graph = city.graph;
@@ -158,7 +147,6 @@ export class Car {
       : null;
     const targetMoving = following && Math.abs(this.followTarget.speed) > 2;
 
-    // Lesson 9: stuck detection FIRST, before any car-ahead early return.
     const moving = Math.abs(this.speed) > 1.2;
     if (!moving && this.recoverPhase === 0) {
       this.stuckTimer += dt;
@@ -172,8 +160,6 @@ export class Car {
       this.recoverCount++;
     }
 
-    // Stuck recovery: reverse arc, then forward arc, then (autotest) warp.
-    // Lesson 13: no reversing while following a live moving target.
     if (this.recoverPhase !== 0) {
       if (following && targetMoving) {
         this.recoverPhase = 0; // never reverse at a moving target
@@ -190,14 +176,11 @@ export class Car {
       }
     }
 
-    // Lesson 4: off-road recovery — drive to the nearest road point first,
-    // never diagonally through blocks. (Distance to a road centreline.)
     const offRoad = distanceToRoad(graph, this.x, this.z) > ROAD_HALF + 3;
     let goalNode = this.goalNode;
     if (following) goalNode = nearestNode(graph, targetPos.x, targetPos.z);
     if (offRoad) goalNode = nearestNode(graph, this.x, this.z);
 
-    // Replan the road path periodically or when the goal node moved.
     this.replanTimer -= dt;
     const myNode = nearestNode(graph, this.x, this.z);
     if (!this.path || this.replanTimer <= 0 || goalNode !== this.goalNode) {
@@ -206,16 +189,11 @@ export class Car {
       this.replanTimer = 0.6;
     }
 
-    // Pure pursuit: steer at a point LOOKAHEAD metres along the path
-    // from the closest point on it, so the car never targets a passed node.
     let steerX, steerZ;
     let closestSeg = 0;
     if (following && dist(this.x, this.z, targetPos.x, targetPos.z) < CLOSE_RANGE) {
-      // Lesson 12: within close range of a live target, steer DIRECTLY at
-      // its live position, not at path nodes.
       steerX = targetPos.x; steerZ = targetPos.z;
     } else if (offRoad) {
-      // Lesson 8: while off-road, steer back to the road, not the target.
       const n = graph.nodes[this.path[0]];
       steerX = n.x; steerZ = n.z;
     } else {
@@ -226,7 +204,6 @@ export class Car {
         const d = dist(this.x, this.z, c.x, c.z);
         if (d < bestD) { bestD = d; bestX = c.x; bestZ = c.z; bestT = c.t; closestSeg = k; }
       }
-      // Walk LOOKAHEAD metres along the polyline from the closest point.
       let remain = LOOKAHEAD;
       let px = bestX, pz = bestZ;
       let k = closestSeg;
@@ -253,13 +230,10 @@ export class Car {
     const diff = angleDiff(this.heading, desired);
     const steer = clamp(diff * 1.6, -1, 1);
 
-    // Speed control.
     let cruise = opts.cruise || 16;
-    // A chaser matches its prey's speed; police never do, so a manhunt can be lost.
     if (following && opts.matchSpeed !== false) {
       cruise = Math.max(cruise, Math.abs(this.followTarget.speed) + 4);
     }
-    // Lesson 6: predictive corner braking — cap speed before the next turn.
     let cornerCap = Infinity;
     if (!following || dist(this.x, this.z, targetPos.x, targetPos.z) > CLOSE_RANGE) {
       for (let k = closestSeg; k < Math.min(this.path.length - 1, closestSeg + 2); k++) {
@@ -271,12 +245,10 @@ export class Car {
         else if (turn > 0.2) cornerCap = Math.min(cornerCap, opts.isChase ? 24 : 16);
       }
     }
-    // Lesson 5: no closing-speed cap while following a live target.
     let targetSpeed = Math.min(cruise, cornerCap);
     if (following && opts.matchSpeed !== false) {
       targetSpeed = Math.max(targetSpeed, Math.abs(this.followTarget.speed) + 3);
     }
-    // Lesson 10: zero arrive radius on live targets — drive through them.
     const arrived = !following && this.path &&
       dist(this.x, this.z,
         graph.nodes[this.path[this.path.length - 1]].x,
@@ -290,7 +262,6 @@ export class Car {
       throttle = -0.7;
     }
 
-    // Car-ahead check (after stuck detection): slow for a stopped car ahead.
     if (!following) {
       for (const other of cars) {
         if (other === this || other.wrecked) continue;
@@ -312,7 +283,6 @@ export class Car {
     return { throttle, steer };
   }
 
-  // Warp to the nearest road node (autotest recovery of last resort).
   warpToRoad(city) {
     const n = nearestNode(city.graph, this.x, this.z);
     const p = city.graph.nodes[n];
@@ -334,8 +304,6 @@ export class Car {
   }
 }
 
-// --- traffic --------------------------------------------------------------
-// A traffic car loops a small route of road nodes at a modest cruise speed.
 export function makeTrafficCar(city, rng, index, THREE, makeCarMesh, carColourFor) {
   const nodes = city.graph.nodes;
   const n = Math.floor(rng() * nodes.length);
@@ -349,7 +317,6 @@ export function makeTrafficCar(city, rng, index, THREE, makeCarMesh, carColourFo
     maxSpeed: 20,
   });
   car.mesh = makeCarMesh(THREE, car.colour, false);
-  // A loop of 4-6 random nodes.
   car.loop = [];
   for (let k = 0; k < 5; k++) car.loop.push(Math.floor(rng() * nodes.length));
   car.loopIdx = 0;
@@ -368,7 +335,6 @@ export function updateTraffic(car, dt, city, cars, now) {
   car.autopilot(dt, { city, cars, now, cruise: car.cruise, isChase: false });
 }
 
-// --- police ----------------------------------------------------------------
 export const POLICE_CALLSIGNS = [
   'CORAL-12', 'CORAL-27', 'CORAL-48', 'CORAL-85', 'CORAL-43', 'CORAL-19',
   'CORAL-61', 'CORAL-33', 'CORAL-07', 'CORAL-58', 'CORAL-91', 'CORAL-24',
@@ -398,7 +364,6 @@ export class Helicopter {
     if (!this.active) { this.mesh.visible = false; return; }
     this.mesh.visible = true;
     this.angle += dt * 0.35;
-    // Searching: circle a distant search point instead of the player.
     const cx = this.searching ? this.searchX : px;
     const cz = this.searching ? this.searchZ : pz;
     const tx = cx + Math.sin(this.angle) * 26;
@@ -410,7 +375,6 @@ export class Helicopter {
     this.mesh.rotation.y = Math.atan2(px - this.x, pz - this.z);
     this.mesh.userData.rotor.rotation.y += dt * 22;
     this.mesh.userData.tailRotor.rotation.x += dt * 18;
-    // Spotlight cone points at the player.
     this.mesh.userData.spot.lookAt(px - this.x, -this.y, pz - this.z);
   }
 }

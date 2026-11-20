@@ -45,8 +45,6 @@ export class Player {
 
   heal(amount) { this.health = clamp(this.health + amount, 0, 100); }
 
-  // On-foot step. input: {forward, back, left, right, sprint}.
-  // Returns nothing; moves on the ground plane, sliding around buildings.
   stepOnFoot(dt, input, city) {
     if (this.inCar || this.dead) return;
     const sprint = input.sprint ? 7.5 : 4.6;
@@ -58,14 +56,12 @@ export class Player {
     const len = Math.hypot(mx, mz);
     if (len > 0) {
       mx /= len; mz /= len;
-      // Movement is camera-relative.
       const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
       const rx = Math.cos(this.heading), rz = -Math.sin(this.heading);
       const vx = fx * mz + rx * mx;
       const vz = fz * mz + rz * mx;
       const nx = this.x + vx * sprint * dt;
       const nz = this.z + vz * sprint * dt;
-      // Slide around building AABBs.
       if (!hitsBuilding(nx, this.z, city)) this.x = nx;
       if (!hitsBuilding(this.x, nz, city)) this.z = nz;
       this.walkPhase += dt * sprint * 1.6;
@@ -83,7 +79,6 @@ export class Player {
     }
   }
 
-  // Try to enter the nearest car within 4 m. Returns the car or null.
   tryEnterCar(cars) {
     if (this.inCar || this.stealCooldown > 0) return null;
     let best = null, bestD = 4;
@@ -113,7 +108,6 @@ export class Player {
     this.inCar = null;
     this.onFoot = true;
     this.stealCooldown = 0.5;
-    // Never leave the player wedged against a building: snap to the nearest road point.
     if (city && hitsBuilding(this.x, this.z, city)) {
       const rp = nearestRoadPoint(city.graph, this.x, this.z);
       if (rp) { this.x = rp.x; this.z = rp.z; }
@@ -124,8 +118,6 @@ export class Player {
     }
   }
 
-  // Melee / ranged attack. `enemies` is a list of {x, z, health, damage()}.
-  // Returns the enemy hit, or null.
   attack(enemies, now) {
     if (this.attackCooldown > 0 || this.dead) return null;
     const w = this.weapon;
@@ -142,7 +134,6 @@ export class Player {
     }
     if (this.ammo[w.id] !== undefined && this.ammo[w.id] <= 0) return null;
     if (this.ammo[w.id] !== undefined) this.ammo[w.id]--;
-    // Hitscan: nearest enemy within range and within a 35-degree cone.
     let best = null, bestD = w.range;
     for (const e of enemies) {
       if (e.health <= 0) continue;
@@ -157,7 +148,6 @@ export class Player {
     return best;
   }
 
-  // Autotest on-foot driver: walk toward a node, shooting enemies in range.
   autoWalk(dt, city, targetNode, enemies) {
     if (this.inCar || this.dead) return false;
     const goal = city.graph.nodes[targetNode];
@@ -165,18 +155,14 @@ export class Player {
     const myNode = nearestNode(city.graph, this.x, this.z);
     const path = this._walkPath || null;
     if (!path || path.length === 0 || this._walkGoal !== targetNode) {
-      // Lazy import to avoid a cycle: missions own the path helper.
       this._walkPath = null;
       this._walkGoal = targetNode;
     }
-    // Simple steering: head for the next node on the BFS path, recomputed
-    // cheaply each frame from the nearest node.
     const next = nextNodeToward(city, myNode, targetNode);
     const p = city.graph.nodes[next];
     const desired = Math.atan2(p.x - this.x, p.z - this.z);
     this.heading += clamp(angleDiff(this.heading, desired), -3 * dt, 3 * dt);
     this.stepOnFoot(dt, { forward: true }, city);
-    // Auto-fire at the nearest live enemy in range.
     if (enemies) {
       let best = null, bestD = 26;
       for (const e of enemies) {
@@ -205,7 +191,6 @@ export function hitsBuilding(x, z, city) {
   return false;
 }
 
-// One BFS step: the neighbour of `from` that lies on a shortest path to `to`.
 import { findPath } from './city.js';
 export function nextNodeToward(city, from, to) {
   if (from === to) return to;

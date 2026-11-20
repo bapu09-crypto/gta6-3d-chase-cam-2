@@ -1,6 +1,4 @@
 // missions.js — Coraluna's story: 8 missions for Dario Fuentes, a driver
-// home after three years away, working off a debt to loan shark Marcos Vidal.
-// Every target is a road node (or the pier walkway).
 import { dist } from './util.js';
 import { nearestNode } from './city.js';
 
@@ -12,7 +10,6 @@ export const CHARACTERS = {
   VIDAL:  { name: 'VIDAL',   role: 'THE SHARK', colour: '#c0a080', hair: '#e8e8e8' },
 };
 
-// Node helpers: node (i, j) with i east, j south; index = j*7 + i.
 const N = (i, j) => j * 7 + i;
 
 export const LOCATIONS = {
@@ -26,7 +23,6 @@ export const LOCATIONS = {
   lookout: N(5, 3),      // Zona Franca lookout
 };
 
-// Stage types: goto | steal | wreck | escort | ram | lose | combat
 export const MISSIONS = [
   {
     id: 1, title: 'HOMECOMING', reward: 500, respect: 120,
@@ -144,7 +140,6 @@ export class MissionController {
     this.dialogue = { who, text, until: now + 7 };
   }
 
-  // Advance a stage; returns 'mission' when the mission completes.
   advance(now, game) {
     this.stageIdx++;
     this.progress = 0;
@@ -168,7 +163,6 @@ export class MissionController {
     return 'stage';
   }
 
-  // Objective text with live progress substituted.
   objectiveText() {
     const s = this.stage;
     if (!s) return 'All missions complete';
@@ -193,7 +187,6 @@ export class MissionController {
   }
 }
 
-// Distance from the player to the current stage target node.
 export function stageTargetPos(game) {
   const mc = game.missions;
   const s = mc.stage;
@@ -207,7 +200,6 @@ export function stageTargetPos(game) {
     const p = game.city.graph.nodes[LOCATIONS.pierGate];
     return { x: p.x, z: p.z, node: LOCATIONS.pierGate };
   }
-  // Ram/wreck stages point the minimap at the nearest live mission vehicle.
   if (s.type === 'ram' || s.type === 'wreck') {
     let best = null, bestD = Infinity;
     for (const c of game.missionCars) {

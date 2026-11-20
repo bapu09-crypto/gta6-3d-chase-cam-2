@@ -1,5 +1,4 @@
 // audio.js — Coraluna radio and effects, all WebAudio, all procedural.
-// sirens, gunshots and crash thuds are synthesized on the fly.
 export const STATIONS = [
   { id: 'SOL', freq: '98.1', name: 'SOL 98.1', genre: 'Island Pop', bpm: 112,
     chords: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]], bass: [36, 33, 29, 31] },
@@ -40,7 +39,6 @@ export class Radio {
     this.step = 0;
   }
 
-  // Call from a user gesture (start button / first keypress).
   ensure() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     try {
@@ -53,7 +51,6 @@ export class Radio {
       this.musicGain = this.ctx.createGain();
       this.musicGain.gain.value = 0.16;
       this.musicGain.connect(this.master);
-      // Engine hum.
       this.engineOsc = this.ctx.createOscillator();
       this.engineOsc.type = 'sawtooth';
       this.engineOsc.frequency.value = 55;
@@ -62,7 +59,6 @@ export class Radio {
       this.engineOsc.connect(this.engineGain);
       this.engineGain.connect(this.master);
       this.engineOsc.start();
-      // Siren (two-tone).
       this.sirenOsc = this.ctx.createOscillator();
       this.sirenOsc.type = 'sine';
       this.sirenOsc.frequency.value = 700;
@@ -99,7 +95,6 @@ export class Radio {
     } catch (e) { /* best-effort */ }
   }
 
-  // One sequencer tick per 16th note; called from the game loop.
   update(now) {
     if (!this.enabled || !this.ctx) return;
     const st = this.station();
@@ -118,19 +113,15 @@ export class Radio {
     const bar = Math.floor(step / 16) % 4;
     const beat = step % 16;
     const chord = st.chords[bar];
-    // Bass on beats 0 and 8 (reggae off-beat for MAREA).
     if (st.id === 'MAREA' ? (beat === 4 || beat === 12) : (beat === 0 || beat === 8)) {
       this.note(midiToFreq(st.bass[bar]), t, stepDur * 2.2, 'triangle', 0.5);
     }
-    // Chord stabs on the off-beats.
     if (beat % 4 === 2) {
       for (const m of chord) this.note(midiToFreq(m), t, stepDur * 1.4, 'square', 0.10);
     }
-    // Lead pluck every other bar.
     if (bar % 2 === 0 && beat % 8 === 0) {
       this.note(midiToFreq(chord[2] + 12), t, stepDur * 2, 'sine', 0.16);
     }
-    // Hat tick.
     if (beat % 2 === 0) this.noise(t, 0.03, 0.05);
   }
 
@@ -157,7 +148,6 @@ export class Radio {
     src.start(t);
   }
 
-  // One-shot effects.
   blip(freq, dur, type, vol) {
     if (!this.enabled) return;
     try { this.note(freq, this.ctx.currentTime, dur, type || 'sine', vol || 0.2); } catch (e) {}

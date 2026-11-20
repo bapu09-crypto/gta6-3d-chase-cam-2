@@ -1,6 +1,4 @@
 // city.js — Coraluna: the road graph, districts, buildings and reachability.
-// The city is a 7x7 lattice of intersections (49 nodes) with a 64 m spacing.
-// Every mission target sits on a road node or a road centreline.
 import { makeRng, pick, dist, segHitsBox } from './util.js';
 
 export const GRID = 7;            // nodes per side
@@ -10,14 +8,14 @@ export const ROAD_HALF = 7;       // half-width of a road
 export const BLOCK_INSET = 15;    // buildings keep this clear of road centrelines
 
 export const DISTRICTS = [
-  { name: 'PLAYA SERENA',   region: { x0: -192, z0: -192, x1: -64,  z1: -64  }, colour: '#e8b64c' },
-  { name: 'PUERTO AZUL',    region: { x0: -192, z0: -64,  x1: -64,  z1: 64   }, colour: '#4c9fd8' },
-  { name: 'MERCADO VIEJO',  region: { x0: -192, z0: 64,   x1: -64,  z1: 192  }, colour: '#d8704c' },
-  { name: 'LAS TORRES',     region: { x0: -64,  z0: -192, x1: 64,   z1: -64  }, colour: '#8a7fd0' },
-  { name: 'PLAZA CENTRAL',  region: { x0: -64,  z0: -64,  x1: 64,   z1: 64   }, colour: '#c0a060' },
-  { name: 'COLINA VERDE',   region: { x0: -64,  z0: 64,   x1: 64,   z1: 192  }, colour: '#6fb06a' },
-  { name: 'ZONA FRANCA',    region: { x0: 64,   z0: -192, x1: 192,  z1: 64   }, colour: '#9aa0a8' },
-  { name: 'MIRADOR SUR',    region: { x0: 64,   z0: 64,   x1: 192,  z1: 192  }, colour: '#d84c8a' },
+  { name: 'PLAYA SERENA', short: 'PLAYA', region: { x0: -192, z0: -192, x1: -64, z1: -64 }, colour: '#e8b64c' },
+  { name: 'PUERTO AZUL', short: 'PUERTO', region: { x0: -192, z0: -64, x1: -64, z1: 64 }, colour: '#4c9fd8' },
+  { name: 'MERCADO VIEJO', short: 'MERCADO', region: { x0: -192, z0: 64, x1: -64, z1: 192 }, colour: '#d8704c' },
+  { name: 'LAS TORRES', short: 'TORRES', region: { x0: -64, z0: -192, x1: 64, z1: -64 }, colour: '#8a7fd0' },
+  { name: 'PLAZA CENTRAL', short: 'PLAZA', region: { x0: -64, z0: -64, x1: 64, z1: 64 }, colour: '#c0a060' },
+  { name: 'COLINA VERDE', short: 'COLINA', region: { x0: -64, z0: 64, x1: 64, z1: 192 }, colour: '#6fb06a' },
+  { name: 'ZONA FRANCA', short: 'FRANCA', region: { x0: 64, z0: -192, x1: 192, z1: 64 }, colour: '#9aa0a8' },
+  { name: 'MIRADOR SUR', short: 'MIRADOR', region: { x0: 64, z0: 64, x1: 192, z1: 192 }, colour: '#d84c8a' },
 ];
 
 export function districtAt(x, z) {
@@ -29,7 +27,6 @@ export function districtAt(x, z) {
   return DISTRICTS[4];
 }
 
-// Node index from grid coords.
 export function nodeIndex(i, j) { return j * GRID + i; }
 export function nodePos(n) {
   const i = n % GRID, j = Math.floor(n / GRID);
@@ -37,7 +34,6 @@ export function nodePos(n) {
 }
 export function nodeAt(i, j) { return nodeIndex(i, j); }
 
-// Build the road graph.
 export function buildGraph() {
   const nodes = [];
   for (let n = 0; n < GRID * GRID; n++) nodes.push(nodePos(n));
@@ -56,7 +52,6 @@ export function buildGraph() {
   return { nodes, adj, edges };
 }
 
-// Breadth-first shortest path (node list) from start to goal.
 export function findPath(graph, start, goal) {
   if (start === goal) return [start];
   const prev = new Array(graph.nodes.length).fill(-1);
@@ -90,7 +85,6 @@ export function nearestNode(graph, x, z) {
   return best;
 }
 
-// Closest point on any road centreline segment to (x, z).
 export function nearestRoadPoint(graph, x, z) {
   let best = null, bestD = Infinity;
   for (const [a, b] of graph.edges) {
@@ -106,7 +100,6 @@ export function nearestRoadPoint(graph, x, z) {
   return best;
 }
 
-// Distance from a point to the nearest road centreline segment.
 export function distanceToRoad(graph, x, z) {
   let best = Infinity;
   for (const [a, b] of graph.edges) {
@@ -122,7 +115,6 @@ export function distanceToRoad(graph, x, z) {
   return best;
 }
 
-// Buildings: one or two boxes per city block, inset from the roads.
 export function buildCity(seed) {
   const rng = makeRng(seed);
   const graph = buildGraph();
@@ -138,7 +130,6 @@ export function buildCity(seed) {
       const z1 = -HALF + (bj + 1) * SPACING - BLOCK_INSET;
       const d = districtAt((x0 + x1) / 2, (z0 + z1) / 2);
       const downtown = d.name === 'LAS TORRES' || d.name === 'PLAZA CENTRAL';
-      // Plaza Central keeps an open square in its middle block.
       if (d.name === 'PLAZA CENTRAL' && bi === 2 && bj === 2) {
         for (let k = 0; k < 6; k++) plazaTrees.push({
           x: x0 + 6 + rng() * (x1 - x0 - 12), z: z0 + 6 + rng() * (z1 - z0 - 12),
@@ -157,26 +148,22 @@ export function buildCity(seed) {
           h, hue, district: d.name,
         });
       }
-      // Palm trees along the block's south and east edges, clear of the road.
       if (rng() < 0.8) {
         palms.push({ x: x0 - 4, z: z0 + 8 + rng() * 20 });
         palms.push({ x: x1 + 4, z: z0 + 8 + rng() * 20 });
       }
     }
   }
-  // Street lamps at every second intersection corner.
   for (let j = 0; j < GRID; j += 2) {
     for (let i = 0; i < GRID; i += 2) {
       const p = nodePos(nodeIndex(i, j));
       lamps.push({ x: p.x + ROAD_HALF + 2, z: p.z + ROAD_HALF + 2 });
     }
   }
-  // The pier: a wooden walkway reaching west into the sea from Puerto Azul.
   const pier = { x0: -HALF - 96, z0: -34, x1: -HALF, z1: -10, endX: -HALF - 92, endZ: -22 };
   return { graph, buildings, palms, lamps, plazaTrees, pier, seed };
 }
 
-// Reachability gate: BFS from spawn; every node and target reachable.
 export function checkReachability(city, targetNodes) {
   const g = city.graph;
   const seen = new Array(g.nodes.length).fill(false);

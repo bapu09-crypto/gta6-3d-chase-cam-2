@@ -1,11 +1,8 @@
 // world.js — builds the Coraluna three.js scene from the city layout:
-// golden-hour sun, sea, wet asphalt, buildings, palms, lamps, pier.
-// Also factories for cars, pedestrians and the police helicopter.
 import { HALF, GRID, SPACING, ROAD_HALF } from './city.js';
 
 const CAR_COLOURS = [0xd83a2e, 0x2e6fd8, 0xe8b64c, 0xeeeeee, 0x222226, 0x3aa84c, 0xd8704c, 0x8a5fd0];
 
-// A window-pattern atlas: a facade with lit windows, plus an emissive map.
 function makeWindowAtlas(THREE) {
   const S = 128, cols = 4, rows = 6;
   const facade = document.createElement('canvas');
@@ -32,7 +29,6 @@ function makeWindowAtlas(THREE) {
   return { map, emissiveMap };
 }
 
-// A soft radial pool of warm light, drawn on a canvas for lamp pools.
 function makePoolTexture(THREE) {
   const S = 128;
   const cv = document.createElement('canvas');
@@ -50,8 +46,6 @@ export function buildWorld(city, THREE) {
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xff9a55, 260, 900);
 
-  // Golden-hour sky: a gradient dome (warm horizon, cooler zenith, a glow
-  // around the low sun) with a few soft clouds drifting above the city.
   const skyGeo = new THREE.SphereGeometry(900, 24, 16);
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, fog: false, depthWrite: false,
@@ -71,7 +65,6 @@ export function buildWorld(city, THREE) {
       '  col = mix(col, zenith, clamp(d.y * 1.6 - 0.15, 0.0, 1.0));',
       '  float glow = pow(max(dot(d, sunDir), 0.0), 18.0);',
       '  col += vec3(1.0, 0.75, 0.35) * glow * 0.9;',
-      // Night grade: the same dome, pulled down to deep blue.
       '  vec3 nightHorizon = vec3(0.10, 0.08, 0.22);',
       '  vec3 nightZenith = vec3(0.02, 0.03, 0.10);',
       '  vec3 night = mix(nightHorizon, nightZenith, clamp(d.y * 1.8, 0.0, 1.0));',
@@ -82,7 +75,6 @@ export function buildWorld(city, THREE) {
     ].join('\n'),
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
-  // Soft evening clouds: flattened pale spheres, warm-lit from below.
   const clouds = [];
   const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffd9b0, transparent: true, opacity: 0.55, fog: false });
   const cloudMat2 = new THREE.MeshBasicMaterial({ color: 0xffc090, transparent: true, opacity: 0.45, fog: false });
@@ -99,7 +91,6 @@ export function buildWorld(city, THREE) {
     scene.add(g);
     clouds.push(g);
   }
-  // Low, warm, hard sun with crisp shadows.
   const sun = new THREE.DirectionalLight(0xffa04a, 3.4);
   sun.position.set(-320, 150, -180);
   sun.castShadow = true;
@@ -118,7 +109,6 @@ export function buildWorld(city, THREE) {
   sunBall.position.set(-640, 120, -320);
   scene.add(sunBall);
 
-  // Ground: bright warm sand base under the whole map.
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1400, 1400),
     new THREE.MeshLambertMaterial({ color: 0xd9a86a }));
@@ -127,15 +117,12 @@ export function buildWorld(city, THREE) {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Sea: bright blue plane west of the city. It sits just below the pier
-  // deck (top y=0) so the deck stands clear of the water.
   const sea = new THREE.Mesh(
     new THREE.PlaneGeometry(400, 1400),
     new THREE.MeshLambertMaterial({ color: 0x2f8fd0 }));
   sea.rotation.x = -Math.PI / 2;
   sea.position.set(-HALF - 200, -0.1, 0);
   scene.add(sea);
-  // Beach strip.
   const beach = new THREE.Mesh(
     new THREE.PlaneGeometry(46, 1400),
     new THREE.MeshLambertMaterial({ color: 0xf2dda8 }));
@@ -143,7 +130,6 @@ export function buildWorld(city, THREE) {
   beach.position.set(-HALF - 23, 0.02, 0);
   scene.add(beach);
 
-  // City baseplate: light warm slab.
   const slab = new THREE.Mesh(
     new THREE.PlaneGeometry(HALF * 2 + 40, HALF * 2 + 40),
     new THREE.MeshLambertMaterial({ color: 0xa89478 }));
@@ -152,8 +138,6 @@ export function buildWorld(city, THREE) {
   slab.receiveShadow = true;
   scene.add(slab);
 
-  // Wet asphalt: near-black road with long golden streak reflections.
-  // A small custom shader draws the streaks from the strip's own UVs.
   const roadMat = new THREE.ShaderMaterial({
     uniforms: {},
     vertexShader: [
@@ -186,7 +170,6 @@ export function buildWorld(city, THREE) {
     strip.rotation.z = ang;
     strip.position.set((A.x + B.x) / 2, 0.06, (A.z + B.z) / 2);
     scene.add(strip);
-    // Painted edge lines, so each lane reads as marked asphalt.
     for (const off of [-ROAD_HALF + 0.7, ROAD_HALF - 0.7]) {
       const edge = new THREE.Mesh(new THREE.PlaneGeometry(len, 0.35), edgeMat);
       edge.rotation.x = -Math.PI / 2;
@@ -205,7 +188,6 @@ export function buildWorld(city, THREE) {
       scene.add(dash);
     }
   }
-  // Intersection pads use the same wet-asphalt shader as the strips.
   const padGeo = new THREE.PlaneGeometry(ROAD_HALF * 2 + 2, ROAD_HALF * 2 + 2);
   const padMat = roadMat;
   for (const n of city.graph.nodes) {
@@ -215,7 +197,6 @@ export function buildWorld(city, THREE) {
     scene.add(pad);
   }
 
-  // Buildings with lit windows from the window-pattern atlas.
   const atlas = makeWindowAtlas(THREE);
   const winMat = new THREE.MeshBasicMaterial({ color: 0xffd98a });
   for (const b of city.buildings) {
@@ -241,7 +222,6 @@ export function buildWorld(city, THREE) {
       new THREE.MeshLambertMaterial({ color: 0x5a4a3c }));
     roof.position.set(mesh.position.x, b.h + 0.25, mesh.position.z);
     scene.add(roof);
-    // A few lit windows on the street-facing side.
     const rows = Math.min(4, Math.floor(b.h / 6));
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < Math.min(3, Math.floor(w / 6)); c++) {
@@ -256,7 +236,6 @@ export function buildWorld(city, THREE) {
     }
   }
 
-  // Palm trees: trunk + 6 fronds.
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x7a5a38 });
   const frondMat = new THREE.MeshLambertMaterial({ color: 0x3f8f3a });
   function palm(x, z, s) {
@@ -278,7 +257,6 @@ export function buildWorld(city, THREE) {
   for (const p of city.palms) scene.add(palm(p.x, p.z, 1));
   for (const t of city.plazaTrees) scene.add(palm(t.x, t.z, 1.2));
 
-  // Street lamps with glow spheres and pools of light on the road.
   const poleMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2e });
   const glowMat = new THREE.MeshBasicMaterial({ color: 0xffe2a0 });
   const poolTex = makePoolTexture(THREE);
@@ -299,7 +277,6 @@ export function buildWorld(city, THREE) {
     scene.add(pool);
   }
 
-  // Drifting dust and embers over the city for atmosphere.
   const particleCount = 260;
   const pPos = new Float32Array(particleCount * 3);
   for (let k = 0; k < particleCount; k++) {
@@ -314,14 +291,12 @@ export function buildWorld(city, THREE) {
   }));
   scene.add(particles);
 
-  // The pier: wooden deck, posts and a lighthouse beacon; deck top at y=0.
   const deckMat = new THREE.MeshLambertMaterial({ color: 0xa8824f });
   const deck = new THREE.Mesh(
     new THREE.BoxGeometry(96, 1.2, 24),
     deckMat);
   deck.position.set(-HALF - 48, -0.6, -22);
   scene.add(deck);
-  // Crates and barrels along the pier.
   const crateMat = new THREE.MeshLambertMaterial({ color: 0xb08a4a });
   const barrelMat = new THREE.MeshLambertMaterial({ color: 0x3a6a8a });
   const crateSpots = [
@@ -357,7 +332,6 @@ export function buildWorld(city, THREE) {
   beaconLight.position.set(city.pier.endX, 9.4, city.pier.endZ);
   scene.add(beaconLight);
 
-  // Billboards along the beach boulevard.
   const boardTexts = ['CORALUNA', 'PLAYA SERENA', 'SOL 98.1', 'PUERTO AZUL'];
   boardTexts.forEach((label, i) => {
     const g = new THREE.Group();
@@ -378,12 +352,8 @@ export function buildWorld(city, THREE) {
   return { scene, sun, hemi, sunBall, skyMat, palm, clouds, particles };
 }
 
-// Car mesh factory: glossy body, cabin, wheels, headlights. Returns a
-// Group whose .userData holds the wheel meshes for spin animation.
 export function makeCarMesh(THREE, colour, isPolice) {
   const g = new THREE.Group();
-  // The hero paint is a clearcoat physical material: high metalness,
-  // low roughness, hard clear coat — a bright specular sweep, not matte.
   const bodyMat = isPolice
     ? new THREE.MeshLambertMaterial({ color: 0x1a2a3a })
     : new THREE.MeshPhysicalMaterial({
@@ -393,8 +363,6 @@ export function makeCarMesh(THREE, colour, isPolice) {
   const body = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.55, 4.5), bodyMat);
   body.position.y = 0.55;
   g.add(body);
-  // A sloped nose and raised tail deck, so the car reads as a car from
-  // the chase camera instead of a rectangular box.
   const nose = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.32, 1.1), bodyMat);
   nose.position.set(0, 0.78, 1.95);
   nose.rotation.x = 0.28;
@@ -403,7 +371,6 @@ export function makeCarMesh(THREE, colour, isPolice) {
   tailDeck.position.set(0, 0.82, -1.95);
   tailDeck.rotation.x = -0.18;
   g.add(tailDeck);
-  // A gloss highlight panel along the bonnet and roof line.
   if (!isPolice) {
     const sheen = new THREE.Mesh(
       new THREE.BoxGeometry(1.7, 0.08, 3.6),
@@ -418,8 +385,6 @@ export function makeCarMesh(THREE, colour, isPolice) {
     trim.position.y = 0.42;
     g.add(trim);
   }
-  // Cabin: a narrower glasshouse set back from the nose, with a sloped
-  // windscreen and a dark rear window, instead of a box on a box.
   const cabin = new THREE.Mesh(
     new THREE.BoxGeometry(1.7, 0.55, 1.9),
     new THREE.MeshPhysicalMaterial({ color: 0x5a7a9a, metalness: 0.25, roughness: 0.08, clearcoat: 1.0 }));
@@ -437,7 +402,6 @@ export function makeCarMesh(THREE, colour, isPolice) {
   rearGlass.position.set(0, 1.22, -1.28);
   rearGlass.rotation.x = -0.45;
   g.add(rearGlass);
-  // Rear wing on two short struts, and a dark front grille.
   if (!isPolice) {
     const wing = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.07, 0.45), bodyMat);
     wing.position.set(0, 1.18, -2.15);
@@ -473,8 +437,6 @@ export function makeCarMesh(THREE, colour, isPolice) {
     w.position.set(wx, 0.42, wz);
     g.add(w);
     wheels.push(w);
-    // A pale hubcap on the outer face, so the wheels read as wheels and
-    // not as black discs under the bodywork.
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.38, 8), hubMat);
     hub.rotation.z = Math.PI / 2;
     hub.position.set(wx, 0.42, wz);
@@ -485,14 +447,11 @@ export function makeCarMesh(THREE, colour, isPolice) {
     const l = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.1), lightMat);
     l.position.set(lx, 0.7, 2.22);
     g.add(l);
-    // Amber indicator beside each headlight.
     const ind = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.1),
       new THREE.MeshBasicMaterial({ color: 0xff9a2a }));
     ind.position.set(lx + (lx < 0 ? -0.32 : 0.32), 0.7, 2.22);
     g.add(ind);
   }
-  // A full-width red taillight bar across the tail, so the rear of the
-  // hero car reads at a glance from the chase camera behind it.
   const tailLight = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.32, 0.12),
     new THREE.MeshBasicMaterial({ color: 0xff2a1a }));
   tailLight.position.set(0, 0.78, -2.27);
@@ -504,8 +463,6 @@ export function makeCarMesh(THREE, colour, isPolice) {
 
 export function carColourFor(i) { return CAR_COLOURS[i % CAR_COLOURS.length]; }
 
-// Flame for a burning wreck: an outer orange cone and an inner yellow one,
-// both unlit so they read at dusk. The caller adds a warm point light.
 export function makeFlameMesh(THREE) {
   const g = new THREE.Group();
   const outer = new THREE.Mesh(
@@ -521,7 +478,6 @@ export function makeFlameMesh(THREE) {
   return g;
 }
 
-// Pedestrian mesh: capsule-ish body, head, legs that swing while walking.
 export function makePedMesh(THREE, shirt, skin) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
@@ -545,7 +501,6 @@ export function makePedMesh(THREE, shirt, skin) {
   return g;
 }
 
-// Police helicopter: body, tail, main + tail rotors, spotlight cone.
 export function makeHeliMesh(THREE) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(

@@ -11,19 +11,16 @@
   #game canvas { display: block; }
   #hud { position: fixed; inset: 0; pointer-events: none; display: none;
     text-shadow: 0 1px 3px rgba(0,0,0,.8); }
-  /* Filmic finish: a subtle vignette darkening the frame edges. */
   #vignette { position: absolute; inset: 0; pointer-events: none;
     background: radial-gradient(ellipse at center, transparent 58%, rgba(24,10,0,.38) 100%); }
   .panel { background: rgba(12, 16, 24, 0.72); border: 1px solid rgba(255,255,255,.18);
     border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(2px); }
-  /* Top-left: mission block */
   #mission-box { position: absolute; top: 14px; left: 14px; max-width: 430px; }
   #mission { font-size: 20px; font-weight: 800; letter-spacing: 1px; color: #ffd23a; }
   #stage { font-size: 13px; font-weight: 700; color: #9fd8ff; margin-top: 2px; }
   #objective { font-size: 15px; margin-top: 4px; }
   #next { font-size: 13px; color: #ffb36b; margin-top: 2px; }
   #timer { font-size: 14px; font-weight: 800; color: #ff6b5e; margin-top: 2px; }
-  /* Top-right: money + wanted */
   #status-box { position: absolute; top: 14px; right: 14px; text-align: right; }
   #money { font-size: 26px; font-weight: 800; color: #7dff8a; }
   #wantedlabel { font-size: 12px; letter-spacing: 2px; color: #ff8a7a; }
@@ -31,8 +28,6 @@
   #stars.hot { color: #ff5040; }
   #banner { font-size: 13px; font-weight: 700; color: #ff8a7a; margin-top: 4px; }
   #clock { font-size: 13px; font-weight: 700; color: #9fd8ff; margin-top: 4px; }
-  /* Right-middle, under the police panel: crew ability cards (portrait,
-     ability, cash cost, key, READY / cooldown) */
   #crew { position: absolute; top: 300px; right: 14px; width: 272px; font-size: 13px; }
   .crew-head { font-weight: 800; color: #9fd8ff; letter-spacing: 1px; font-size: 12px; margin-bottom: 4px; }
   .crew-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
@@ -42,13 +37,10 @@
   .crew-status { font-weight: 800; color: #7dff8a; font-size: 12px; }
   .crew-row .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; }
   .crew-row span:nth-child(2) { color: #ffb36b; font-weight: 700; }
-  /* Right-middle: police response */
   #police { position: absolute; top: 150px; right: 14px; width: 250px; font-size: 12px; }
   .police-head { font-weight: 800; color: #9fd8ff; margin-bottom: 4px; letter-spacing: .5px; }
   .police-row { display: flex; justify-content: space-between; padding: 1px 0; }
   .police-row span:nth-child(2) { color: #ffb36b; }
-  .police-more { color: #aaa; margin-top: 2px; }
-  /* Bottom-left: minimap + vitals */
   #map-box { position: absolute; left: 14px; bottom: 14px; }
   #minimap { width: 220px; height: 220px; border-radius: 50%; border: 3px solid rgba(255,255,255,.35);
     background: rgba(12,16,24,.85); display: block; }
@@ -68,20 +60,17 @@
   .wslot.active { border-color: #ffd23a; color: #ffd23a; }
   .wslot b { color: #9fd8ff; font-weight: 800; }
   .wslot.active b { color: #ffd23a; }
-  /* Bottom-right: speed + car + radio */
   #drive-box { position: absolute; right: 14px; bottom: 14px; text-align: right; }
   #speed { font-size: 34px; font-weight: 800; }
   #carname { font-size: 15px; font-weight: 700; color: #ffd23a; }
   #carcond { font-size: 12px; color: #cfe8ff; }
   #radio { font-size: 13px; margin-top: 6px; color: #ffb36b; }
-  /* Bottom-centre: dialogue */
   #dialogue { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
     display: none; align-items: center; gap: 12px; max-width: 560px; }
   #portrait { width: 64px; height: 64px; border-radius: 8px; border: 2px solid #ffd23a; flex: none; }
   #dlgname { font-weight: 800; color: #ffd23a; font-size: 14px; }
   #dlgrole { font-size: 11px; color: #9fd8ff; letter-spacing: 1px; }
   #dlgtext { font-size: 15px; margin-top: 2px; }
-  /* Start / pause overlays */
   .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
     justify-content: center; background: linear-gradient(160deg, rgba(40,16,8,.88), rgba(8,20,40,.88));
     z-index: 10; text-align: center; padding: 20px; }
@@ -95,9 +84,6 @@
   .overlay button:hover { background: #ffe27a; }
   .controls { font-size: 14px; color: #cfe8ff; margin-top: 14px; line-height: 1.7; }
   #pause-screen { display: none; justify-content: flex-start; padding-top: 8px; }
-  /* Round 5 pause / map / progress screen: a real screen, not a bare
-     PAUSED label — mission list + money/respect on the left, a full-city
-     map drawn from the road lattice on the right. */
   #pause-screen .pause-grid { display: flex; gap: 16px; align-items: stretch;
     max-width: 1080px; width: 96%; text-align: left; margin-top: 6px; }
   #pause-screen .pause-col { background: rgba(12,16,24,.78); border: 1px solid rgba(255,255,255,.18);
@@ -207,8 +193,6 @@
 
 <p id="status" role="status" aria-live="polite"></p>
 <script type="module">
-  // three.js r160 as an ES module (the UMD build is deprecated and prints a
-  // warning on load). Exposed on window so the game modules can use it.
   import * as THREE from './vendor/three.module.min.js';
   window.THREE = THREE;
 </script>

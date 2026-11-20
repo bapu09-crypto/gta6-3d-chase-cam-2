@@ -1,5 +1,4 @@
 // hud.js — Coraluna's dense HUD: mission header, police panel, stars,
-// money, health/armour, weapon slots, minimap, speed, radio, respect.
 import { CHARACTERS, MISSIONS } from './missions.js';
 import { DISTRICTS, HALF } from './city.js';
 import { dist } from './util.js';
@@ -13,12 +12,9 @@ export function rankFor(respect) {
   for (const cand of RANK_NAMES) if (respect >= cand[0]) r = cand;
   const idx = RANK_NAMES.indexOf(r);
   const next = RANK_NAMES[idx + 1];
-  // At the top rank the bar is full: next equals the current value.
   return { name: r[1], cur: r[0], next: next ? next[0] : respect };
 }
 
-// Procedural portrait: a stylised face on a small canvas, distinct per
-// character (skin tone, hair colour and shape, collar).
 export function drawPortrait(canvas, who) {
   const c = CHARACTERS[who] || CHARACTERS.DARIO;
   const ctx = canvas.getContext('2d');
@@ -26,18 +22,15 @@ export function drawPortrait(canvas, who) {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#2a1a2e';
   ctx.fillRect(0, 0, W, H);
-  // Shoulders / collar.
   ctx.fillStyle = who === 'VIDAL' ? '#3a3a3a' : '#5a2a3a';
   ctx.beginPath();
   ctx.moveTo(0, H); ctx.lineTo(W * 0.2, H * 0.72);
   ctx.lineTo(W * 0.8, H * 0.72); ctx.lineTo(W, H);
   ctx.closePath(); ctx.fill();
-  // Face.
   ctx.fillStyle = c.colour;
   ctx.beginPath();
   ctx.ellipse(W / 2, H * 0.46, W * 0.26, H * 0.30, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Hair.
   ctx.fillStyle = c.hair;
   ctx.beginPath();
   ctx.ellipse(W / 2, H * 0.22, W * 0.27, H * 0.16, 0, Math.PI, 0);
@@ -46,18 +39,15 @@ export function drawPortrait(canvas, who) {
     ctx.fillStyle = '#e8e8e8';
     ctx.fillRect(W * 0.28, H * 0.30, W * 0.44, H * 0.05);
   }
-  // Eyes.
   ctx.fillStyle = '#141414';
   ctx.beginPath(); ctx.arc(W * 0.40, H * 0.44, W * 0.035, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(W * 0.60, H * 0.44, W * 0.035, 0, Math.PI * 2); ctx.fill();
-  // Mouth.
   ctx.strokeStyle = '#5a2a1a';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(W * 0.44, H * 0.62);
   ctx.lineTo(W * 0.56, H * 0.62);
   ctx.stroke();
-  // Sunglasses for Elena, scar for Dario.
   if (who === 'ELENA') {
     ctx.fillStyle = '#101418';
     ctx.fillRect(W * 0.32, H * 0.40, W * 0.16, H * 0.07);
@@ -84,7 +74,6 @@ export class Hud {
     this.mapCtx = this.el.minimap ? this.el.minimap.getContext('2d') : null;
     this.lastPortraitWho = null;
     this._lastWeapons = null;
-    // Crew ability cards: portrait, ability, cash cost, key, READY / cooldown.
     if (this.el.crew) {
       const crew = [
         { who: 'DARIO', ability: 'BRIBE', cost: 800, key: 'Z' },
@@ -107,8 +96,6 @@ export class Hud {
 
   setVisible(v) { if (this.el.hud) this.el.hud.style.display = v ? 'block' : 'none'; }
 
-  // The pause / map / progress screen: the eight-mission list, the
-  // player's money and respect, and a full-city map from the road lattice.
   drawPauseScreen(game) {
     const mc = game.missions;
     const doneCount = mc.done ? MISSIONS.length : mc.missionIdx;
@@ -141,7 +128,6 @@ export class Hud {
     const ctx = cv.getContext('2d');
     if (!ctx) return;
     const S = cv.width, PAD = 14;
-    // World extent: the lattice plus the sea to the west and the pier.
     const x0 = -HALF - 110, x1 = HALF + 14, z0 = -HALF - 14, z1 = HALF + 14;
     const sc = Math.min((S - 2 * PAD) / (x1 - x0), (S - 2 * PAD) / (z1 - z0));
     const ox = PAD - x0 * sc, oz = PAD - z0 * sc;
@@ -149,7 +135,6 @@ export class Hud {
     ctx.clearRect(0, 0, S, S);
     ctx.fillStyle = 'rgba(20, 26, 34, 0.95)';
     ctx.fillRect(0, 0, S, S);
-    // Sea to the west, then the pier deck reaching into it.
     ctx.fillStyle = '#2f7fb8';
     const [seaX] = toMap(-HALF, 0);
     ctx.fillRect(0, 0, seaX, S);
@@ -158,8 +143,7 @@ export class Hud {
     const [pbx, pbz] = toMap(pier.x1, pier.z1);
     ctx.fillStyle = '#a8824f';
     ctx.fillRect(Math.min(pax, pbx), Math.min(paz, pbz), Math.abs(pbx - pax), Math.abs(pbz - paz));
-    // District blocks, coloured like the city data, with names.
-    ctx.font = 'bold 11px sans-serif';
+    ctx.font = 'bold 10px sans-serif';
     for (const d of DISTRICTS) {
       const r = d.region;
       const [ax, az] = toMap(r.x0, r.z0);
@@ -167,9 +151,8 @@ export class Hud {
       ctx.fillStyle = d.colour + '55';
       ctx.fillRect(ax, az, bx - ax, bz - az);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(d.name, ax + 5, az + 15);
+      ctx.fillText(d.short || d.name, ax + 5, az + 14);
     }
-    // The 7x7 road lattice: every edge, every node.
     ctx.strokeStyle = '#c8c8d0';
     ctx.lineWidth = 2;
     for (const [a, b] of game.city.graph.edges) {
@@ -183,7 +166,6 @@ export class Hud {
       const [nx, nz] = toMap(n.x, n.z);
       ctx.beginPath(); ctx.arc(nx, nz, 2.5, 0, Math.PI * 2); ctx.fill();
     }
-    // Route to the objective, if the game has one.
     const route = game.routeNodes;
     if (route && route.length > 1) {
       ctx.strokeStyle = '#ffd23a';
@@ -196,8 +178,6 @@ export class Hud {
       });
       ctx.stroke();
     }
-    // Mission markers: a gold diamond on the next objective, green ticks
-    // on the finished missions' target spots.
     const tgt = game.objectivePos;
     if (tgt) {
       const [tx, tz] = toMap(tgt.x, tgt.z);
@@ -207,13 +187,11 @@ export class Hud {
       ctx.closePath(); ctx.fill();
       ctx.strokeStyle = '#141414'; ctx.lineWidth = 2; ctx.stroke();
     }
-    // Police dots.
     ctx.fillStyle = '#4c9fd8';
     for (const u of game.policeUnits) {
       const [ux, uz] = toMap(u.car.x, u.car.z);
       ctx.beginPath(); ctx.arc(ux, uz, 4, 0, Math.PI * 2); ctx.fill();
     }
-    // Player arrow, rotated to the player's heading.
     const [px, pz] = toMap(game.px(), game.pz());
     ctx.save();
     ctx.translate(px, pz);
@@ -227,8 +205,46 @@ export class Hud {
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 12px sans-serif';
     ctx.fillText('N', S - 16, 16);
-    ctx.fillStyle = '#ffd23a';
-    ctx.fillText('CORALUNA', PAD, S - 10);
+    const bandTop = oz + z1 * sc + 8;
+    const bandBottom = S - 8;
+    if (bandBottom - bandTop > 40) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.fillRect(PAD, bandTop, S - 2 * PAD, bandBottom - bandTop);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(PAD, bandTop, S - 2 * PAD, bandBottom - bandTop);
+      const colW = (S - 2 * PAD) / 4;
+      ctx.font = '10px sans-serif';
+      DISTRICTS.forEach((d, i) => {
+        const cx = PAD + 8 + (i % 4) * colW;
+        const cy = bandTop + 20 + Math.floor(i / 4) * 18;
+        ctx.fillStyle = d.colour;
+        ctx.fillRect(cx, cy - 9, 10, 10);
+        ctx.fillStyle = '#d8dce2';
+        ctx.fillText(d.short || d.name, cx + 14, cy);
+      });
+      const keyY = bandTop + 58;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(PAD + 13, keyY - 12); ctx.lineTo(PAD + 18, keyY - 3); ctx.lineTo(PAD + 8, keyY - 3);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#d8dce2';
+      ctx.fillText('YOU', PAD + 22, keyY - 3);
+      ctx.fillStyle = '#ffd23a';
+      ctx.beginPath();
+      ctx.moveTo(PAD + 108, keyY - 13); ctx.lineTo(PAD + 114, keyY - 7); ctx.lineTo(PAD + 108, keyY - 1); ctx.lineTo(PAD + 102, keyY - 7);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#d8dce2';
+      ctx.fillText('OBJECTIVE', PAD + 118, keyY - 3);
+      ctx.fillStyle = '#4c9fd8';
+      ctx.beginPath(); ctx.arc(PAD + 208, keyY - 7, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#d8dce2';
+      ctx.fillText('POLICE', PAD + 216, keyY - 3);
+      ctx.strokeStyle = '#ffd23a'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(PAD + 288, keyY - 7); ctx.lineTo(PAD + 304, keyY - 7); ctx.stroke();
+      ctx.fillStyle = '#d8dce2';
+      ctx.fillText('ROUTE', PAD + 308, keyY - 3);
+    }
   }
 
   update(game, now) {
@@ -246,20 +262,16 @@ export class Hud {
       this.setText('objective', 'Free roam — Coraluna is yours.');
       this.setText('next', 'NEXT Enjoy the sunset');
     }
-    // Wanted stars.
     const stars = '★'.repeat(game.wanted) + '☆'.repeat(Math.max(0, 5 - game.wanted));
     this.setText('stars', stars);
     this.el.stars.className = game.wanted > 0 ? 'stars hot' : 'stars';
     this.setText('wantedlabel', game.wanted > 0 ? 'WANTED' : 'CLEAN');
     this.setText('money', '$' + Math.floor(p.money).toLocaleString('en-US'));
-    // Health/armour numbers sit beside the bars, never inside the fill.
     this.setText('healthnum', Math.ceil(p.health));
     this.setText('armournum', Math.ceil(p.armour));
     const hb = this.el.health; if (hb) hb.style.width = p.health + '%';
     const ab = this.el.armour; if (ab) ab.style.width = p.armour + '%';
-    // Time of day, golden hour onwards.
     this.setText('clock', 'TIME ' + game.timeOfDay());
-    // Crew ability cooldowns: READY in gold, otherwise the seconds left.
     if (game.crewAbilities && this.el.crew) {
       this.el.crew.querySelectorAll('.crew-status').forEach((el) => {
         const a = game.crewAbilities.find((x) => x.who === el.dataset.who);
@@ -269,7 +281,6 @@ export class Hud {
         el.style.color = a.left > 0 ? '#ff8a7a' : '#7dff8a';
       });
     }
-    // Weapon slots: one box per owned weapon, name + ammo.
     const slots = [];
     const { WEAPONS } = game;
     WEAPONS.forEach((w, i) => {
@@ -282,7 +293,6 @@ export class Hud {
       this.el.weapons.innerHTML = slotsHtml;
       this._lastWeapons = slotsHtml;
     }
-    // Car / speed.
     const car = p.inCar;
     if (car) {
       this.setText('speed', Math.round(Math.abs(car.speed) * 3.6) + ' km/h');
@@ -299,7 +309,6 @@ export class Hud {
     this.setText('rank', `RESPECT · ${rank.name} ${game.respect} / ${rank.next}`);
     const rb = this.el.respect;
     if (rb) rb.style.width = Math.min(100, ((game.respect - rank.cur) / Math.max(1, rank.next - rank.cur)) * 100) + '%';
-    // Police panel.
     const units = game.policeUnits.slice().sort((a, b) =>
       a.distanceTo(game.px(), game.pz()) - b.distanceTo(game.px(), game.pz()));
     const shown = units.slice(0, 5);
@@ -308,17 +317,14 @@ export class Hud {
       const d = Math.round(u.distanceTo(game.px(), game.pz()));
       html += `<div class="police-row"><span>${u.callsign}</span><span>${u.role}</span><span>${d}m</span></div>`;
     }
-    if (units.length > 5) html += `<div class="police-more">+${units.length - 5} more units</div>`;
     if (units.length === 0) html = '<div class="police-head">CPD RESPONSE · NO UNITS NEARBY</div>';
     if (this.el.police) this.el.police.innerHTML = html;
-    // Banner: in-sight / cooling down.
     let banner = '';
     if (game.wanted > 0) {
       banner = game.inSight ? '● THEY CAN SEE YOU · BREAK LINE OF SIGHT'
         : `○ LOSING THEM · ${Math.ceil(game.cooldownLeft)}s UNTIL HEAT DROPS`;
     }
     this.setText('banner', banner);
-    // Timer for timed stages.
     const s = mc.stage;
     if (s && s.type === 'ram' && game.limoDeadline) {
       const left = Math.max(0, game.limoDeadline - now);
@@ -328,7 +334,6 @@ export class Hud {
     } else {
       this.setText('timer', '');
     }
-    // Dialogue.
     const dlg = mc.dialogue;
     if (dlg && now < dlg.until) {
       const c = CHARACTERS[dlg.who] || CHARACTERS.DARIO;
@@ -360,18 +365,15 @@ export class Hud {
     ctx.fillStyle = 'rgba(20, 26, 34, 0.92)';
     ctx.fillRect(0, 0, S, S);
     const toMap = (x, z) => [S / 2 + (x - px) * (S / 2 / 110), S / 2 + (z - pz) * (S / 2 / 110)];
-    // Sea to the west.
     ctx.fillStyle = '#2f7fb8';
     const [sx] = toMap(-192, 0);
     if (sx > 0) ctx.fillRect(0, 0, Math.min(S, sx), S);
-    // The pier deck on the minimap.
     const pier = game.city.pier;
     const [pax, paz] = toMap(pier.x0, pier.z0);
     const [pbx, pbz] = toMap(pier.x1, pier.z1);
     ctx.fillStyle = '#a8824f';
     ctx.fillRect(Math.min(pax, pbx), Math.min(paz, pbz),
       Math.abs(pbx - pax), Math.abs(pbz - paz));
-    // Roads.
     ctx.strokeStyle = '#8a8a96';
     ctx.lineWidth = 2;
     for (const [a, b] of game.city.graph.edges) {
@@ -380,7 +382,6 @@ export class Hud {
       const [bx, bz] = toMap(B.x, B.z);
       ctx.beginPath(); ctx.moveTo(ax, az); ctx.lineTo(bx, bz); ctx.stroke();
     }
-    // Route to the objective.
     const route = game.routeNodes;
     if (route && route.length > 1) {
       ctx.strokeStyle = '#ffd23a';
@@ -393,7 +394,6 @@ export class Hud {
       });
       ctx.stroke();
     }
-    // Search zone while wanted.
     if (game.wanted > 0) {
       ctx.strokeStyle = 'rgba(255, 60, 60, 0.9)';
       ctx.lineWidth = 2;
@@ -403,7 +403,6 @@ export class Hud {
       ctx.fillStyle = 'rgba(255, 60, 60, 0.12)';
       ctx.fill();
     }
-    // Objective marker.
     const tgt = game.objectivePos;
     if (tgt) {
       const [tx, tz] = toMap(tgt.x, tgt.z);
@@ -411,13 +410,11 @@ export class Hud {
       ctx.beginPath(); ctx.arc(tx, tz, 6, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#141414'; ctx.lineWidth = 2; ctx.stroke();
     }
-    // Police dots.
     ctx.fillStyle = '#4c9fd8';
     for (const u of game.policeUnits) {
       const [ux, uz] = toMap(u.car.x, u.car.z);
       ctx.beginPath(); ctx.arc(ux, uz, 3.5, 0, Math.PI * 2); ctx.fill();
     }
-    // Player arrow.
     ctx.save();
     ctx.translate(S / 2, S / 2);
     ctx.rotate(game.playerHeading());
@@ -426,7 +423,6 @@ export class Hud {
     ctx.moveTo(0, -8); ctx.lineTo(5, 6); ctx.lineTo(-5, 6);
     ctx.closePath(); ctx.fill();
     ctx.restore();
-    // North tick.
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 11px sans-serif';
     ctx.fillText('N', S - 14, 14);

@@ -1,6 +1,4 @@
 // autotest.js — Coraluna's self-test: a scripted autopilot that plays all 8
-// missions end to end in accelerated simulation, plus the reachability gate
-// and the deterministic screenshot staging used for the 4 cover shots.
 import { checkReachability } from './city.js';
 import { LOCATIONS } from './missions.js';
 import { nearestNode, findPath } from './city.js';
@@ -18,7 +16,6 @@ export function runReachability(game) {
   return result;
 }
 
-// --- autopilot driver ---------------------------------------------------------
 export function runAutotest(game) {
   const ctrl = {
     finished: false,
@@ -43,7 +40,6 @@ export function runAutotest(game) {
     console.log('[AUTOTEST]', msg);
   }
 
-  // Walk directly toward a point.
   function walkToPoint(dt, x, z) {
     const desired = Math.atan2(x - p.x, z - p.z);
     p.heading += clamp(angleDiff(p.heading, desired), -3.5 * dt, 3.5 * dt);
@@ -62,7 +58,6 @@ export function runAutotest(game) {
   }
 
   function ensureCar(dt) {
-    // Returns true when the player is in a driveable car.
     if (p.inCar && !p.inCar.wrecked && p.inCar.condition < 25) {
       p.exitCar(game.city);
     }
@@ -75,7 +70,6 @@ export function runAutotest(game) {
       p.tryEnterCar(game.cars.filter(c => c.stealable || c.owned));
       return !!p.inCar;
     }
-    // Walk to the car; if wedged for 4 sim-seconds, step to the nearest road node.
     if (ctrl._footX === undefined) {
       ctrl._footX = p.x; ctrl._footZ = p.z; ctrl._footTimer = 0;
     }
@@ -102,7 +96,6 @@ export function runAutotest(game) {
     car.followTarget = null;
     car.goalNode = node;
     car.autopilot(dt, { city: game.city, cars: game.cars, now: game.now, cruise, isChase });
-    // Stuck recovery of last resort: warp to the nearest road node.
     if (car.recoverCount - ctrl.lastRecoverCount >= 3) {
       ctrl.lastRecoverCount = car.recoverCount;
       car.warpToRoad(game.city);
@@ -146,7 +139,6 @@ export function runAutotest(game) {
       }
       return;
     }
-    // Log mission/stage transitions.
     if (mc.missionIdx !== ctrl.lastMission || mc.stageIdx !== ctrl.lastStage) {
       ctrl.lastMission = mc.missionIdx;
       ctrl.lastStage = mc.stageIdx;
@@ -154,7 +146,6 @@ export function runAutotest(game) {
       ctrl._gotoD = undefined; ctrl._gotoTimer = 0;
       note(`Mission ${mc.mission.id} ${mc.mission.title} — stage ${mc.stageIdx + 1}/${mc.stageCount}: ${s.title}`);
     }
-    // Timeout guard.
     if (ctrl.simSeconds > 3600 && !ctrl.failed) {
       ctrl.finished = true;
       ctrl.failed = true;
@@ -162,11 +153,9 @@ export function runAutotest(game) {
       return;
     }
     if (ctrl.finished) return;
-    // Respawn after death: the game handles it; just keep driving.
     if (p.dead) return;
 
     if (s.type === 'combat') {
-      // On foot on the pier: walk at the nearest live enemy and shoot.
       if (p.inCar) p.exitCar(game.city);
       const alive = game.enemies.filter(e => e.health > 0);
       if (alive.length === 0) return;
@@ -186,8 +175,6 @@ export function runAutotest(game) {
     }
 
     if (s.type === 'steal') {
-      // Get out of the owned car, walk to a parked car that is not Dario's
-      // own, take it.
       if (p.inCar) { p.exitCar(game.city); return; }
       const car = nearestParkedCar(true);
       if (!car) return;
@@ -228,7 +215,6 @@ export function runAutotest(game) {
       if (d > 45) {
         driveCarAtTarget(dt, van, 34);
       } else {
-        // Shadow the van at a polite distance.
         const car = p.inCar;
         car.followTarget = van;
         car.autopilot(dt, { city: game.city, cars: game.cars, now: game.now, cruise: 14, isChase: false });
@@ -238,7 +224,6 @@ export function runAutotest(game) {
 
     if (s.type === 'lose') {
       if (!ensureCar(dt)) return;
-      // If no star has dropped for 45 sim-seconds, warp to a far corner.
       if (ctrl._lastWanted === undefined) { ctrl._lastWanted = game.wanted; ctrl._wantedTimer = 0; }
       if (game.wanted < ctrl._lastWanted) { ctrl._lastWanted = game.wanted; ctrl._wantedTimer = 0; }
       else {
@@ -260,7 +245,6 @@ export function runAutotest(game) {
           note(`warp #${ctrl.warps} to far corner (manhunt not dropping)`);
         }
       }
-      // Keep moving between far corner nodes.
       ctrl.loseTimer -= dt;
       const myNode = nearestNode(game.city.graph, p.x, p.z);
       if (!ctrl.loseTarget || myNode === ctrl.loseTarget || ctrl.loseTimer <= 0) {
@@ -278,7 +262,6 @@ export function runAutotest(game) {
       return;
     }
 
-    // goto: drive to the stage node; warp to it after 60 s without progress.
     if (s.type === 'goto') {
       if (!ensureCar(dt)) return;
       const t = game.city.graph.nodes[s.node];
@@ -320,8 +303,6 @@ export function runAutotest(game) {
   return ctrl;
 }
 
-// --- screenshot staging -------------------------------------------------------
-// Deterministic staged scenes: fixed positions, wanted level, dialogue.
 export function stageShot(game, name) {
   const p = game.player;
   const city = game.city;
@@ -342,9 +323,6 @@ export function stageShot(game, name) {
     if (s && s.who) game.missions.say(s.who, s.text, game.now);
     else if (m) game.missions.say(m.intro.who, m.intro.text, game.now);
   }
-  // Round 5 slab fix: the white-and-black slab was the closest police
-  // car between the chase camera and the hero car; offsets landing in
-  // that corridor (3-14 m behind, within 7 m of the axis) are pushed out.
   function clearCameraCorridor(dx, dz) {
     const h = p.inCar ? p.inCar.heading : p.heading;
     const fwd = dx * Math.sin(h) + dz * Math.cos(h);
@@ -355,8 +333,6 @@ export function stageShot(game, name) {
     }
     return [dx, dz];
   }
-  // Police are placed relative to where the player ACTUALLY is; the
-  // first offset is the closest unit and gets the RAMMING role.
   function setPolice(n, offsets, heliDx, heliDz, heliY) {
     game.setWanted(n);
     game.policeUnits.forEach((u, i) => {
@@ -372,7 +348,6 @@ export function stageShot(game, name) {
     game.heli.mesh.visible = true;
     game.heli.mesh.position.set(game.heli.x, game.heli.y, game.heli.z);
   }
-  // Park a few traffic cars near the player so the street reads as busy.
   function placeTraffic(spots) {
     game.traffic.slice(0, spots.length).forEach((car, i) => {
       const [dx, dz, heading] = spots[i];
@@ -382,8 +357,6 @@ export function stageShot(game, name) {
       car._staged = true;
     });
   }
-  // Move any un-staged car within 30 m of the player far away, so a
-  // random spawn cannot pile into the staged hero car on the first tick.
   function clearNearby() {
     const far = game.city.graph.nodes[48];
     let k = 0;
@@ -398,8 +371,6 @@ export function stageShot(game, name) {
       }
     }
   }
-  // Stage pedestrians onto the pavements near the player, so the street
-  // reads as busy at a glance in every shot.
   function placePeds(spots) {
     game.peds.slice(0, spots.length).forEach((ped, i) => {
       const [dx, dz] = spots[i];
@@ -411,16 +382,54 @@ export function stageShot(game, name) {
   function playerCar(name, colour) {
     const car = p.inCar || game.parked[0];
     car.name = name; car.colour = colour;
-    // Recolour the body mesh (the first child) so the car matches its name.
     if (car.mesh && car.mesh.children[0] && car.mesh.children[0].material) {
       car.mesh.children[0].material.color.setHex(colour);
     }
     return car;
   }
+  function addFlash(x, y, z, heading, scale) {
+    const T = game.THREE;
+    const g = new T.Group();
+    const outer = new T.Mesh(new T.ConeGeometry(0.5 * scale, 1.5 * scale, 6),
+      new T.MeshBasicMaterial({ color: 0xff8a2a, transparent: true, opacity: 0.8,
+        blending: T.AdditiveBlending, depthWrite: false }));
+    outer.rotation.x = -Math.PI / 2;
+    outer.position.z = 0.75 * scale;
+    const inner = new T.Mesh(new T.ConeGeometry(0.28 * scale, 1.0 * scale, 6),
+      new T.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.9,
+        blending: T.AdditiveBlending, depthWrite: false }));
+    inner.rotation.x = -Math.PI / 2;
+    inner.position.z = 0.5 * scale;
+    const core = new T.Mesh(new T.SphereGeometry(0.3 * scale, 8, 6),
+      new T.MeshBasicMaterial({ color: 0xfff6c0 }));
+    g.add(outer); g.add(inner); g.add(core);
+    g.position.set(x, y, z);
+    g.rotation.y = heading;
+    game.scene.add(g);
+    return g;
+  }
+  function addNightBeams(car) {
+    const T = game.THREE;
+    const pool = new T.Mesh(new T.CircleGeometry(2.8, 20),
+      new T.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.10,
+        blending: T.AdditiveBlending, depthWrite: false }));
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.12;
+    car.mesh.add(pool);
+    const ahead = new T.Mesh(new T.PlaneGeometry(5.5, 10),
+      new T.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.18,
+        blending: T.AdditiveBlending, depthWrite: false }));
+    ahead.rotation.x = -Math.PI / 2;
+    ahead.position.set(0, 0.12, 8);
+    car.mesh.add(ahead);
+    const rearGlow = new T.Mesh(new T.PlaneGeometry(1.9, 0.55),
+      new T.MeshBasicMaterial({ color: 0xff2a1a, transparent: true, opacity: 0.25,
+        blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }));
+    rearGlow.position.set(0, 0.78, -2.32);
+    car.mesh.add(rearGlow);
+  }
 
   if (name === 'cover') {
-    // Round 5 cover: M3 THE DROP, stage 2 — south down the x=-128 road
-    // with the sea on the right, three stars, helicopter. $7,400, 86 km/h.
     game.setNight(false);
     setMission(2, 1, 0);
     const car = playerCar('SOLANO GT', 0xd83a2e);
@@ -431,8 +440,6 @@ export function stageShot(game, name) {
     p.health = 92; p.armour = 60;
     p.weaponIdx = 1; p.weaponsOwned = [true, true, true, false];
     game.clockMinutes = 17 * 60 + 12;
-    // Police ahead and to the sides of the southbound run; the closest
-    // unit is 21 m ahead-right, never in the camera corridor behind.
     setPolice(3, [[6, 21, 0], [-6, 32, 0], [8, 46, 0],
       [-9, -22, 0], [11, 60, 0], [-7, 74, 0]], -18, 30, 13);
     placeTraffic([[2, 28, 0], [-3, 44, 0], [3, 62, 0],
@@ -441,14 +448,15 @@ export function stageShot(game, name) {
     game.missions.say('ELENA', 'Package is in the boot, Dario. Pier gate, no detours — the CPD is already circling.', game.now);
     game.camYaw = 0;
   } else if (name === 'chase') {
-    // Round 5 chase: M6 THE REGENT at night in Mirador Sur — a different
-    // district, car and night grade. Respect 980 (SHOT CALLER).
     game.setNight(true);
     setMission(5, 0, 2);
-    const car = playerCar('AZABACHE GT', 0x2e6fd8);
+    const car = playerCar('AZABACHE GT', 0xe8e8e8);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
     placeCar(car, 128, 64, Math.PI);
     car.speed = 27.2;   // 98 km/h
+    const bodyMat = car.mesh.children[0].material;
+    if (bodyMat.emissive) bodyMat.emissive.setHex(0x404040);
+    addNightBeams(car);
     const limo = game.missionCars[0];
     if (limo) placeCar(limo, 128, 8, Math.PI);
     p.money = 19600; game.respect = 980;
@@ -463,8 +471,6 @@ export function stageShot(game, name) {
     game.missions.say('TOMAS', 'The Regent is running north, Dario — ram it before it turns for the pier!', game.now);
     game.camYaw = 0;
   } else if (name === 'pause') {
-    // Round 5 pause shot: M7 MANHUNT is current — missions 1-6 DONE,
-    // 7 NEXT, 8 LOCKED, $24,750, respect 1150 (SHOT CALLER).
     game.setNight(false);
     setMission(6, 0, 0);
     const car = playerCar('BRISA COUPE', 0x3aa84c);
@@ -482,51 +488,84 @@ export function stageShot(game, name) {
     game.pauseShot = true;
     game.camYaw = 0;
   } else {
-    // Round 5 finale: M8 HIGH TIDE, stage 2, moved off the pier into a
-    // populated street in Mercado Viejo — Dario on foot, Vidal ahead with
-    // two henchmen, pedestrians, traffic, three stars. Respect 2350, LEGEND.
     game.setNight(false);
     setMission(7, 1, 0);
     if (p.inCar) p.exitCar(game.city);
-    p.x = -128; p.z = 128;
-    p.heading = Math.PI;
+    p.x = 0; p.z = 0;
+    p.heading = Math.PI / 2;
     p.mesh.visible = true;
     p.mesh.position.set(p.x, 0, p.z);
+    p.mesh.rotation.y = p.heading;
     p.money = 31200; game.respect = 2350;
-    p.health = 78; p.armour = 60;
+    p.health = 64; p.armour = 22;
     p.weaponIdx = 2; p.weaponsOwned = [true, true, true, true];
-    game.clockMinutes = 18 * 60 + 37;
-    // Three stars on foot: cruisers on the street ahead and behind, the
-    // helicopter hanging over the market roofs.
-    setPolice(3, [[-6, -18, Math.PI], [7, -28, Math.PI], [-9, -40, Math.PI],
-      [12, 20, Math.PI], [-12, 28, Math.PI], [8, -56, Math.PI]], -24, -30, 15);
-    placeTraffic([[8, -20, Math.PI], [-8, -34, 0], [8, -48, Math.PI], [-8, 26, Math.PI]]);
-    placePeds([[10, -10], [-10, -18], [10, -26], [-10, -34], [10, -42], [-10, -50],
-      [10, -58], [-10, -66], [10, -6], [-10, -72]]);
+    p.ammo.SMG = 74;
+    game.clockMinutes = 19 * 60 + 20;
+    setPolice(3, [[-6, -20, Math.PI / 2], [6, -30, Math.PI / 2], [-8, 22, -Math.PI / 2],
+      [14, -18, 0], [-14, 28, Math.PI], [10, 34, 0]], 30, -26, 15);
+    placeTraffic([[14, -3, Math.PI / 2], [-12, 4, -Math.PI / 2], [24, 3, Math.PI / 2], [-20, -4, -Math.PI / 2]]);
+    placePeds([[-8, 10], [6, -10], [-4, -12], [12, 10], [-14, 12], [18, -10],
+      [4, 12], [-10, -12], [22, 12], [8, -12]]);
     game.missions.say('VIDAL', 'You walked into my street, Dario. My men are already here.', game.now);
-    // The combat stage spawned Vidal's men on the pier; move them onto
-    // the street instead — Vidal ahead, two henchmen flanking him.
     const boss = game.enemies[0];
     if (boss) {
-      boss.x = p.x; boss.z = p.z - 10;
+      boss.x = p.x + 6; boss.z = p.z;
+      boss.health = 150;
       boss.mesh.position.set(boss.x, 0, boss.z);
+      boss.mesh.rotation.y = -Math.PI / 2;
+      boss.mesh.rotation.x = -0.22;
+      addFlash(boss.x - 1.4, 1.35, boss.z, p.heading + Math.PI, 0.4);
+      const T = game.THREE;
+      const spark = new T.Mesh(new T.SphereGeometry(0.28, 8, 6),
+        new T.MeshBasicMaterial({ color: 0xffd23a }));
+      spark.position.set(boss.x - 0.7, 1.25, boss.z);
+      game.scene.add(spark);
+      const glow = new T.Mesh(new T.SphereGeometry(0.38, 8, 6),
+        new T.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.45 }));
+      glow.position.set(boss.x - 0.7, 1.25, boss.z);
+      game.scene.add(glow);
     }
     const before = game.enemies.length;
     game.spawnWave(2);
-    const flanks = [[-6, -13], [6, -13]];
+    const flanks = [[7.5, -4.5], [8, -2]];
     game.enemies.slice(before).forEach((e, i) => {
       e.x = p.x + flanks[i % 2][0]; e.z = p.z + flanks[i % 2][1];
       e.mesh.position.set(e.x, 0, e.z);
+      if (i === 0) {
+        e.health = 0;
+        e.mesh.rotation.x = Math.PI / 2;
+        e.mesh.position.y = 0.4;
+        const T = game.THREE;
+        const stain = new T.Mesh(new T.CircleGeometry(1.1, 16),
+          new T.MeshBasicMaterial({ color: 0x5a0a0a }));
+        stain.rotation.x = -Math.PI / 2;
+        stain.position.set(e.x, 0.09, e.z);
+        game.scene.add(stain);
+      }
     });
-    game._finaleTarget = { x: p.x, z: p.z - 10 };
-    game.camYaw = 0;
+    const fwdX = Math.sin(p.heading), fwdZ = Math.cos(p.heading);
+    const mzX = p.x + fwdX * 1.7, mzZ = p.z + fwdZ * 1.7;
+    addFlash(mzX, 1.35, mzZ, p.heading, 0.5);
+    const gun = new game.THREE.Mesh(new game.THREE.BoxGeometry(0.1, 0.12, 0.55),
+      new game.THREE.MeshBasicMaterial({ color: 0x14141a }));
+    gun.position.set(-0.45, 1.35, 0.35);
+    p.mesh.add(gun);
+    if (boss) {
+      const T = game.THREE;
+      const len = Math.hypot(boss.x - mzX, boss.z - mzZ);
+      const tracer = new T.Mesh(new T.BoxGeometry(0.09, 0.09, len),
+        new T.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.9 }));
+      tracer.position.set((mzX + boss.x) / 2, 1.3, (mzZ + boss.z) / 2);
+      tracer.rotation.y = Math.atan2(boss.x - mzX, boss.z - mzZ);
+      game.scene.add(tracer);
+    }
+    game._finaleTarget = { x: p.x + 6, z: p.z };
+    game.camYaw = 0.5;
   }
   clearNearby();
   game.updateObjective();
   game.hud.update(game, game.now);
   game.updateCamera(1);
-  // The staged street finale fights on the street, not the pier: point
-  // the minimap objective at Vidal instead of the pier end.
   if (name === 'finale' && game._finaleTarget) {
     game.objectivePos = { x: game._finaleTarget.x, z: game._finaleTarget.z, node: -1 };
     game.routeNodes = null;
