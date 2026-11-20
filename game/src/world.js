@@ -1,25 +1,114 @@
 // world.js — builds the Coraluna three.js scene from the city layout:
-// golden-hour sun, sea and beach to the west, roads, buildings, palms, lamps,
-// the pier, billboards and props. Also factories for cars, pedestrians and the
-// police helicopter. All art is procedural boxes/cylinders; no textures.
+// golden-hour sun, sea and beach to the west, wet asphalt roads with long
+// streak reflections, buildings with lit windows, palms, lamps with light
+// pools, the pier, billboards and drifting dust. Also factories for cars,
+// pedestrians and the police helicopter. All art is procedural; no textures
+// are loaded from disk — the window atlas and light pools are drawn on
+// canvases at build time.
 import { HALF, GRID, SPACING, ROAD_HALF } from './city.js';
 
 const CAR_COLOURS = [0xd83a2e, 0x2e6fd8, 0xe8b64c, 0xeeeeee, 0x222226, 0x3aa84c, 0xd8704c, 0x8a5fd0];
 
+// A window-pattern atlas, drawn once on a canvas: a pale facade with a
+// grid of windows, some of them lit gold. A second canvas holds only the
+// lit windows on black, for use as an emissive map so the lit windows
+// glow at golden hour while the dark ones stay dark.
+function makeWindowAtlas(THREE) {
+  const S = 128, cols = 4, rows = 6;
+  const facade = document.createElement('canvas');
+  facade.width = S; facade.height = S;
+  const f = facade.getContext('2d');
+  f.fillStyle = '#cfc8bc'; f.fillRect(0, 0, S, S);
+  const glow = document.createElement('canvas');
+  glow.width = S; glow.height = S;
+  const g = glow.getContext('2d');
+  g.fillStyle = '#000000'; g.fillRect(0, 0, S, S);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = 8 + c * 30, y = 8 + r * 20;
+      const lit = (c * 3 + r * 5) % 4 === 0;
+      f.fillStyle = lit ? '#ffd98a' : '#2a3242';
+      f.fillRect(x, y, 18, 13);
+      if (lit) { g.fillStyle = '#ffcf6a'; g.fillRect(x, y, 18, 13); }
+    }
+  }
+  const map = new THREE.CanvasTexture(facade);
+  const emissiveMap = new THREE.CanvasTexture(glow);
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  emissiveMap.wrapS = emissiveMap.wrapT = THREE.RepeatWrapping;
+  return { map, emissiveMap };
+}
+
+// A soft radial pool of warm light, drawn on a canvas for lamp pools.
+function makePoolTexture(THREE) {
+  const S = 128;
+  const cv = document.createElement('canvas');
+  cv.width = S; cv.height = S;
+  const ctx = cv.getContext('2d');
+  const grad = ctx.createRadialGradient(S / 2, S / 2, 4, S / 2, S / 2, S / 2);
+  grad.addColorStop(0, 'rgba(255, 190, 90, 0.85)');
+  grad.addColorStop(0.55, 'rgba(255, 170, 70, 0.30)');
+  grad.addColorStop(1, 'rgba(255, 160, 60, 0)');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, S, S);
+  return new THREE.CanvasTexture(cv);
+}
+
 export function buildWorld(city, THREE) {
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xf2a35e, 260, 900);
+  scene.fog = new THREE.Fog(0xff9a55, 260, 900);
 
-  // Golden-hour sky: big gradient dome + low sun.
+  // Golden-hour sky: a gradient dome (warm horizon, cooler zenith, a glow
+  // around the low sun) with a few soft clouds drifting above the city.
   const skyGeo = new THREE.SphereGeometry(900, 24, 16);
-  const skyMat = new THREE.MeshBasicMaterial({
-    color: 0xffb36b, side: THREE.BackSide, fog: false,
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, fog: false, depthWrite: false,
+    uniforms: { sunDir: { value: new THREE.Vector3(-0.82, 0.28, -0.46).normalize() } },
+    vertexShader: 'varying vec3 vDir; void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: [
+      'varying vec3 vDir; uniform vec3 sunDir;',
+      'void main() {',
+      '  vec3 d = normalize(vDir);',
+      '  vec3 horizon = vec3(1.0, 0.55, 0.22);',
+      '  vec3 mid = vec3(0.98, 0.45, 0.28);',
+      '  vec3 zenith = vec3(0.16, 0.28, 0.48);',
+      '  vec3 col = mix(horizon, mid, clamp(d.y * 2.2, 0.0, 1.0));',
+      '  col = mix(col, zenith, clamp(d.y * 1.6 - 0.15, 0.0, 1.0));',
+      '  float glow = pow(max(dot(d, sunDir), 0.0), 18.0);',
+      '  col += vec3(1.0, 0.75, 0.35) * glow * 0.9;',
+      '  gl_FragColor = vec4(col, 1.0);',
+      '}',
+    ].join('\n'),
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
-  const sun = new THREE.DirectionalLight(0xffc27a, 3.0);
+  // Soft evening clouds: flattened pale spheres, warm-lit from below.
+  const clouds = [];
+  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffd9b0, transparent: true, opacity: 0.55, fog: false });
+  const cloudMat2 = new THREE.MeshBasicMaterial({ color: 0xffc090, transparent: true, opacity: 0.45, fog: false });
+  for (let k = 0; k < 12; k++) {
+    const g = new THREE.Group();
+    const puffs = 2 + (k % 3);
+    for (let j = 0; j < puffs; j++) {
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(16 + (k % 4) * 4, 10, 8), k % 2 ? cloudMat : cloudMat2);
+      puff.scale.y = 0.32;
+      puff.position.set(j * 18 - puffs * 9, (j % 2) * 3, (j % 3) * 8 - 8);
+      g.add(puff);
+    }
+    g.position.set(-380 + k * 68, 130 + (k % 4) * 22, -320 + (k * 137) % 640);
+    scene.add(g);
+    clouds.push(g);
+  }
+  // Low, warm, hard sun with crisp shadows.
+  const sun = new THREE.DirectionalLight(0xffa04a, 3.4);
   sun.position.set(-320, 150, -180);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -280; sun.shadow.camera.right = 280;
+  sun.shadow.camera.top = 280; sun.shadow.camera.bottom = -280;
+  sun.shadow.camera.near = 10; sun.shadow.camera.far = 1000;
+  sun.shadow.bias = -0.0004;
   scene.add(sun);
-  const hemi = new THREE.HemisphereLight(0xffd9a0, 0x3a4a6a, 1.15);
+  scene.add(sun.target);
+  const hemi = new THREE.HemisphereLight(0xffd9a0, 0x4a3a5a, 1.25);
   scene.add(hemi);
   const sunBall = new THREE.Mesh(
     new THREE.SphereGeometry(26, 16, 12),
@@ -30,9 +119,10 @@ export function buildWorld(city, THREE) {
   // Ground: bright warm sand base under the whole map.
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1400, 1400),
-    new THREE.MeshLambertMaterial({ color: 0xd9b57f }));
+    new THREE.MeshLambertMaterial({ color: 0xd9a86a }));
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(0, -0.2, 0);
+  ground.receiveShadow = true;
   scene.add(ground);
 
   // Sea: bright blue plane west of the city. It sits just below the pier
@@ -57,47 +147,99 @@ export function buildWorld(city, THREE) {
     new THREE.MeshLambertMaterial({ color: 0xa89478 }));
   slab.rotation.x = -Math.PI / 2;
   slab.position.set(0, 0, 0);
+  slab.receiveShadow = true;
   scene.add(slab);
 
-  // Roads: light asphalt strips along every graph edge, with pale centre dashes.
-  const roadMat = new THREE.MeshLambertMaterial({ color: 0x5f5f68 });
-  const dashMat = new THREE.MeshBasicMaterial({ color: 0xd8d0b8 });
+  // Wet asphalt: near-black road with long golden streak reflections from
+  // the low sun and the lamps, plus puddle shine. A small custom shader —
+  // the standard material stays flat at grazing angles, so the streaks
+  // are drawn from the strip's own UVs: uv.x runs along the road, uv.y
+  // across it, and a sharp falloff across the width makes each reflection
+  // a long streak down the lane.
+  const roadMat = new THREE.ShaderMaterial({
+    uniforms: {},
+    vertexShader: [
+      'varying vec2 vUv;',
+      'void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    ].join('\n'),
+    fragmentShader: [
+      'varying vec2 vUv;',
+      'void main() {',
+      '  vec3 base = vec3(0.055, 0.055, 0.075);',
+      '  float across = 1.0 - abs(vUv.y - 0.5) * 2.0;',
+      '  float lane = pow(max(across, 0.0), 5.0);',
+      '  float shimmer = 0.45 + 0.55 * pow(0.5 + 0.5 * sin(vUv.x * 6.0 + vUv.y * 2.0), 2.0);',
+      '  vec3 streak = vec3(1.0, 0.58, 0.22) * lane * shimmer * 0.7;',
+      '  float puddle = pow(max(0.0, sin(vUv.x * 22.0) * sin(vUv.y * 15.0 + 1.3)), 6.0);',
+      '  vec3 shine = vec3(1.0, 0.72, 0.42) * puddle * 0.35;',
+      '  vec3 sheen = vec3(0.14, 0.09, 0.05) * (0.4 + 0.6 * across);',
+      '  gl_FragColor = vec4(base + streak + shine + sheen, 1.0);',
+      '}',
+    ].join('\n'),
+  });
+  const dashMat = new THREE.MeshBasicMaterial({ color: 0xe8c84c });
+  const edgeMat = new THREE.MeshBasicMaterial({ color: 0xd8d0b8 });
   for (const [a, b] of city.graph.edges) {
     const A = city.graph.nodes[a], B = city.graph.nodes[b];
     const len = Math.hypot(B.x - A.x, B.z - A.z);
+    const ang = -Math.atan2(B.z - A.z, B.x - A.x);
     const strip = new THREE.Mesh(new THREE.PlaneGeometry(len, ROAD_HALF * 2), roadMat);
     strip.rotation.x = -Math.PI / 2;
-    strip.rotation.z = -Math.atan2(B.z - A.z, B.x - A.x);
+    strip.rotation.z = ang;
     strip.position.set((A.x + B.x) / 2, 0.06, (A.z + B.z) / 2);
     scene.add(strip);
+    // Painted edge lines, so each lane reads as marked asphalt.
+    for (const off of [-ROAD_HALF + 0.7, ROAD_HALF - 0.7]) {
+      const edge = new THREE.Mesh(new THREE.PlaneGeometry(len, 0.35), edgeMat);
+      edge.rotation.x = -Math.PI / 2;
+      edge.rotation.z = ang;
+      const nx = -Math.sin(ang), nz = Math.cos(ang);
+      edge.position.set((A.x + B.x) / 2 + nx * off, 0.075, (A.z + B.z) / 2 + nz * off);
+      scene.add(edge);
+    }
     const ndash = Math.floor(len / 12);
     for (let k = 0; k < ndash; k++) {
       const t = (k + 0.5) / ndash;
       const dash = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.5), dashMat);
       dash.rotation.x = -Math.PI / 2;
-      dash.rotation.z = -Math.atan2(B.z - A.z, B.x - A.x);
+      dash.rotation.z = ang;
       dash.position.set(A.x + (B.x - A.x) * t, 0.08, A.z + (B.z - A.z) * t);
       scene.add(dash);
     }
   }
-  // Intersection pads.
+  // Intersection pads: the same wet-asphalt shader as the strips, so a
+  // pad never reads as a black shadowed slab where a strip would shine.
   const padGeo = new THREE.PlaneGeometry(ROAD_HALF * 2 + 2, ROAD_HALF * 2 + 2);
+  const padMat = roadMat;
   for (const n of city.graph.nodes) {
-    const pad = new THREE.Mesh(padGeo, roadMat);
+    const pad = new THREE.Mesh(padGeo, padMat);
     pad.rotation.x = -Math.PI / 2;
     pad.position.set(n.x, 0.07, n.z);
     scene.add(pad);
   }
 
-  // Buildings: boxes with a lighter roof cap and emissive windows at dusk.
+  // Buildings: boxes with a lighter roof cap and lit windows from the
+  // window-pattern atlas, repeated to fit each facade so the windows
+  // glow warm at dusk instead of sitting as flat boxes.
+  const atlas = makeWindowAtlas(THREE);
   const winMat = new THREE.MeshBasicMaterial({ color: 0xffd98a });
   for (const b of city.buildings) {
     const w = b.x1 - b.x0, d = b.z1 - b.z0;
-    const col = new THREE.Color().setHSL(b.hue, 0.52, 0.68);
+    const col = new THREE.Color().setHSL(b.hue, 0.55, 0.66);
+    const map = atlas.map.clone();
+    map.needsUpdate = true;
+    map.repeat.set(Math.max(1, Math.round(w / 11)), Math.max(1, Math.round(b.h / 11)));
+    const glow = atlas.emissiveMap.clone();
+    glow.needsUpdate = true;
+    glow.repeat.copy(map.repeat);
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(w, b.h, d),
-      new THREE.MeshLambertMaterial({ color: col }));
+      new THREE.MeshLambertMaterial({
+        color: col, map, emissive: 0xffb050, emissiveMap: glow, emissiveIntensity: 0.7,
+      }));
     mesh.position.set((b.x0 + b.x1) / 2, b.h / 2, (b.z0 + b.z1) / 2);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     scene.add(mesh);
     const roof = new THREE.Mesh(
       new THREE.BoxGeometry(w + 0.6, 0.5, d + 0.6),
@@ -141,9 +283,12 @@ export function buildWorld(city, THREE) {
   for (const p of city.palms) scene.add(palm(p.x, p.z, 1));
   for (const t of city.plazaTrees) scene.add(palm(t.x, t.z, 1.2));
 
-  // Street lamps with warm glow spheres.
+  // Street lamps with warm glow spheres and a pool of light on the wet
+  // road beneath each one, so the lamps read at golden hour.
   const poleMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2e });
   const glowMat = new THREE.MeshBasicMaterial({ color: 0xffe2a0 });
+  const poolTex = makePoolTexture(THREE);
+  const poolGeo = new THREE.PlaneGeometry(15, 15);
   for (const l of city.lamps) {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 6, 5), poleMat);
     pole.position.set(l.x, 3, l.z);
@@ -151,7 +296,29 @@ export function buildWorld(city, THREE) {
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), glowMat);
     bulb.position.set(l.x, 6.2, l.z);
     scene.add(bulb);
+    const pool = new THREE.Mesh(poolGeo, new THREE.MeshBasicMaterial({
+      map: poolTex, transparent: true, opacity: 0.6, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }));
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(l.x, 0.1, l.z);
+    scene.add(pool);
   }
+
+  // Drifting dust and embers over the city for atmosphere.
+  const particleCount = 260;
+  const pPos = new Float32Array(particleCount * 3);
+  for (let k = 0; k < particleCount; k++) {
+    pPos[k * 3] = -280 + ((k * 37) % 560);
+    pPos[k * 3 + 1] = 0.5 + ((k * 13) % 80) / 10;
+    pPos[k * 3 + 2] = -280 + ((k * 53) % 560);
+  }
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  const particles = new THREE.Points(pGeo, new THREE.PointsMaterial({
+    color: 0xffcf90, size: 0.9, transparent: true, opacity: 0.55, depthWrite: false,
+  }));
+  scene.add(particles);
 
   // The pier: light wooden deck + posts + a small lighthouse beacon at the end.
   // The deck top sits at y=0 so cars and people staged on it stand on the
@@ -217,20 +384,44 @@ export function buildWorld(city, THREE) {
     scene.add(g);
   });
 
-  return { scene, sun, palm };
+  return { scene, sun, palm, clouds, particles };
 }
 
-// Car mesh factory: body + cabin + 4 wheels + headlights. Returns a Group
-// whose .userData holds the wheel meshes for spin animation.
+// Car mesh factory: glossy body with a clear reflective coat, cabin,
+// chrome trim, 4 wheels and headlights. Returns a Group whose .userData
+// holds the wheel meshes for spin animation.
 export function makeCarMesh(THREE, colour, isPolice) {
   const g = new THREE.Group();
-  const bodyMat = new THREE.MeshLambertMaterial({ color: isPolice ? 0x1a2a3a : colour });
+  // The hero paint is a clearcoat physical material: high metalness, low
+  // roughness and a hard clear coat, so the low sun and the lamps draw a
+  // bright specular sweep down the bodywork instead of a flat matte face.
+  const bodyMat = isPolice
+    ? new THREE.MeshLambertMaterial({ color: 0x1a2a3a })
+    : new THREE.MeshPhysicalMaterial({
+      color: colour, metalness: 0.25, roughness: 0.3,
+      clearcoat: 1.0, clearcoatRoughness: 0.1, envMapIntensity: 1.2,
+    });
   const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.75, 4.4), bodyMat);
   body.position.y = 0.65;
   g.add(body);
+  // A gloss highlight panel along the bonnet and roof line.
+  if (!isPolice) {
+    const sheen = new THREE.Mesh(
+      new THREE.BoxGeometry(1.7, 0.08, 3.6),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xffffff, metalness: 0.9, roughness: 0.08,
+        clearcoat: 1.0, clearcoatRoughness: 0.05, transparent: true, opacity: 0.28,
+      }));
+    sheen.position.y = 1.04;
+    g.add(sheen);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(2.14, 0.1, 4.42),
+      new THREE.MeshStandardMaterial({ color: 0xd8d8e0, metalness: 1.0, roughness: 0.15 }));
+    trim.position.y = 0.42;
+    g.add(trim);
+  }
   const cabin = new THREE.Mesh(
     new THREE.BoxGeometry(1.8, 0.7, 2.2),
-    new THREE.MeshLambertMaterial({ color: 0x1c2733 }));
+    new THREE.MeshPhysicalMaterial({ color: 0x5a7a9a, metalness: 0.25, roughness: 0.08, clearcoat: 1.0 }));
   cabin.position.set(0, 1.35, -0.2);
   g.add(cabin);
   if (isPolice) {
@@ -260,6 +451,7 @@ export function makeCarMesh(THREE, colour, isPolice) {
     g.add(l);
   }
   g.userData.wheels = wheels;
+  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
 
@@ -311,10 +503,10 @@ export function makeHeliMesh(THREE) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(2.2, 1.6, 4.6),
-    new THREE.MeshLambertMaterial({ color: 0x1a2a3a }));
+    new THREE.MeshLambertMaterial({ color: 0x2e4a66 }));
   g.add(body);
   const tail = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 4.5),
-    new THREE.MeshLambertMaterial({ color: 0x1a2a3a }));
+    new THREE.MeshLambertMaterial({ color: 0x2e4a66 }));
   tail.position.set(0, 0.3, -4.2);
   g.add(tail);
   const rotorMat = new THREE.MeshBasicMaterial({ color: 0x222222 });

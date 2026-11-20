@@ -380,6 +380,35 @@ export function stageShot(game, name) {
       const [dx, dz, heading] = spots[i];
       placeCar(car, game.px() + dx, game.pz() + dz, heading);
       car.speed = 6 + i * 2;
+      car._staged = true;
+    });
+  }
+  // Move any un-staged traffic or parked car that happens to sit within
+  // 30 m of the player far away: a random spawn next to the staged hero
+  // car would pile into it on the first tick (the hero car is staged at
+  // speed) and leave the cover showing a near-wrecked car.
+  function clearNearby() {
+    const far = game.city.graph.nodes[48];
+    let k = 0;
+    for (const car of [...game.traffic, ...game.parked]) {
+      if (car._staged || car === p.inCar) continue;
+      if (Math.hypot(car.x - game.px(), car.z - game.pz()) < 30) {
+        car.x = far.x - 20 + (k % 5) * 8;
+        car.z = far.z - 10 + Math.floor(k / 5) * 8;
+        car.speed = 0;
+        car.syncMesh();
+        k++;
+      }
+    }
+  }
+  // Stage pedestrians onto the pavements near the player, so the street
+  // reads as busy at a glance in every shot.
+  function placePeds(spots) {
+    game.peds.slice(0, spots.length).forEach((ped, i) => {
+      const [dx, dz] = spots[i];
+      ped.x = game.px() + dx; ped.z = game.pz() + dz;
+      ped.mesh.position.set(ped.x, 0, ped.z);
+      ped.mesh.rotation.y = (i % 2 ? 1 : -1) * Math.PI / 2;
     });
   }
   function playerCar(name, colour) {
@@ -401,7 +430,7 @@ export function stageShot(game, name) {
     // Chase runs west down the north boulevard (z=-192 road) toward the sea
     // and the sunset; the limo is ahead on the same road.
     placeCar(car, -60, -192, -Math.PI / 2);
-    car.speed = 22;
+    car.speed = 31;   // 111 km/h: a three-figure speed for the cover frame
     const limo = game.missionCars[0];
     if (limo) placeCar(limo, -112, -192, -Math.PI / 2);
     p.money = 18450; game.respect = 3900;
@@ -412,7 +441,9 @@ export function stageShot(game, name) {
     // on the boulevard; the helicopter hangs ahead-left in the frame.
     setPolice(4, [[7, 4, -Math.PI / 2], [-14, -6, -Math.PI / 2], [24, -5, -Math.PI / 2],
       [-30, 5, -Math.PI / 2], [42, -4, -Math.PI / 2]], -36, -16, 16);
-    placeTraffic([[-28, 4, -Math.PI / 2], [-78, -4, -Math.PI / 2]]);
+    placeTraffic([[-28, 4, -Math.PI / 2], [-78, -4, -Math.PI / 2], [-46, 5, -Math.PI / 2],
+      [-96, 4, Math.PI / 2], [18, -5, -Math.PI / 2], [-140, -4, -Math.PI / 2]]);
+    placePeds([[-10, 10], [-22, -10], [-40, 10], [-70, -10], [4, -10], [-88, 10]]);
     game.missions.say('TOMAS', 'He\'s making for the pier! Ram the Regent before it reaches the water!', game.now);
     game.camYaw = 0;
   } else if (name === 'chase') {
@@ -422,14 +453,16 @@ export function stageShot(game, name) {
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
     // Manhunt on the z=64 boulevard, heading west.
     placeCar(car, 32, 64, -Math.PI / 2);
-    car.speed = 28;
+    car.speed = 31;   // 111 km/h, three figures like the leaders' chase shots
     p.money = 86250; game.respect = 290;
     p.health = 88; p.armour = 40;
     p.weaponIdx = 1; p.weaponsOwned = [true, true, true, false];
     game.clockMinutes = 18 * 60 + 48;
     setPolice(4, [[7, 4, -Math.PI / 2], [-14, -6, -Math.PI / 2], [24, -5, -Math.PI / 2],
       [-30, 5, -Math.PI / 2], [42, -4, -Math.PI / 2]], -36, -16, 16);
-    placeTraffic([[-26, 4, -Math.PI / 2], [-64, -4, -Math.PI / 2]]);
+    placeTraffic([[-26, 4, -Math.PI / 2], [-64, -4, -Math.PI / 2], [-44, 5, -Math.PI / 2],
+      [-92, 4, Math.PI / 2], [20, -5, -Math.PI / 2]]);
+    placePeds([[-12, 10], [-30, -10], [-52, 10], [-76, -10], [6, -10]]);
     game.missions.say('ELENA', 'The boat sails in two minutes, Dario! Shake that chopper and get to the pier!', game.now);
     game.camYaw = 0;
   } else if (name === 'escort') {
@@ -442,14 +475,16 @@ export function stageShot(game, name) {
     car.speed = 12;
     const van = game.missions.escortVan;
     if (van) placeCar(van, -56, 0, -Math.PI / 2);
-    p.money = 5400; game.respect = 820;
+    p.money = 15400; game.respect = 820;
     p.health = 96; p.armour = 50;
     p.weaponIdx = 0; p.weaponsOwned = [true, true, false, false];
     game.clockMinutes = 17 * 60 + 20;
     // Two stars, four units, the closest 9 m behind the car.
     setPolice(2, [[8, 4, -Math.PI / 2], [-16, -5, -Math.PI / 2],
       [26, 4, -Math.PI / 2], [-34, 6, -Math.PI / 2]]);
-    placeTraffic([[-70, -4, -Math.PI / 2]]);
+    placeTraffic([[-70, -4, -Math.PI / 2], [-38, 4, -Math.PI / 2], [-88, 5, Math.PI / 2],
+      [14, -4, -Math.PI / 2]]);
+    placePeds([[-12, 10], [-30, -10], [-48, 10], [-66, -10]]);
     game.missions.say('NADIA', 'Stay with the van. If a cop rams it, ram the cop back.', game.now);
     game.camYaw = 0;
   } else {
@@ -471,6 +506,8 @@ export function stageShot(game, name) {
     // Four stars: cruisers on the deck and the approach road.
     setPolice(4, [[-6, 6, -Math.PI / 2], [10, -8, -Math.PI / 2], [-14, -10, -Math.PI / 2],
       [16, 10, -Math.PI / 2], [-26, -6, -Math.PI / 2], [26, -6, -Math.PI / 2]], -28, -14, 13);
+    placeTraffic([[22, 6, -Math.PI / 2], [34, -6, -Math.PI / 2], [46, 6, Math.PI / 2]]);
+    placePeds([[-4, 8], [8, -8], [-10, -8], [14, 8]]);
     game.missions.say('VIDAL', 'One last man between you and freedom, Dario. Me.', game.now);
     const boss = game.enemies[0];
     if (boss) {
@@ -501,6 +538,7 @@ export function stageShot(game, name) {
     }
     game.camYaw = 0;
   }
+  clearNearby();
   game.updateObjective();
   game.hud.update(game, game.now);
   game.updateCamera(1);

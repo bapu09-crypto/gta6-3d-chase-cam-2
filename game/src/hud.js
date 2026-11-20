@@ -85,16 +85,27 @@ export class Hud {
     this.mapCtx = this.el.minimap ? this.el.minimap.getContext('2d') : null;
     this.lastPortraitWho = null;
     this._lastWeapons = null;
-    // Crew cards: Dario the driver, Nadia the mechanic, Tomas the lookout —
-    // the same three names the dialogue uses, with their roles on show.
+    // Crew ability cards: Dario the driver, Nadia the mechanic, Tomas the
+    // lookout — each with a portrait, a usable ability, its cash cost, its
+    // key, and a live READY / cooldown readout. The portraits are drawn
+    // onto the small canvases after the rows are laid out.
     if (this.el.crew) {
-      const crew = ['DARIO', 'NADIA', 'TOMAS'];
-      let html = '<div class="crew-head">CREW · CORALUNA</div>';
-      for (const who of crew) {
-        const c = CHARACTERS[who];
-        html += `<div class="crew-row"><span><span class="dot" style="background:${c.colour}"></span>${c.name}</span><span>${c.role}</span></div>`;
+      const crew = [
+        { who: 'DARIO', ability: 'BRIBE', cost: 800, key: 'Z' },
+        { who: 'TOMAS', ability: 'JAMMER', cost: 1200, key: 'X' },
+        { who: 'NADIA', ability: 'FIELD FIX', cost: 500, key: 'C' },
+      ];
+      let html = '<div class="crew-head">CREW ABILITIES · CORALUNA</div>';
+      for (const m of crew) {
+        const c = CHARACTERS[m.who];
+        html += `<div class="crew-row"><canvas class="crew-portrait" width="36" height="36" data-who="${m.who}"></canvas>`
+          + `<span class="crew-main"><b>${c.name}</b> · ${c.role}<br>${m.ability} · $${m.cost.toLocaleString('en-US')} · [${m.key}]</span>`
+          + `<span class="crew-status" data-who="${m.who}">READY</span></div>`;
       }
       this.el.crew.innerHTML = html;
+      this.el.crew.querySelectorAll('.crew-portrait').forEach((cv) => {
+        drawPortrait(cv, cv.dataset.who);
+      });
     }
   }
 
@@ -129,6 +140,16 @@ export class Hud {
     const ab = this.el.armour; if (ab) ab.style.width = p.armour + '%';
     // Time of day, golden hour onwards.
     this.setText('clock', 'TIME ' + game.timeOfDay());
+    // Crew ability cooldowns: READY in gold, otherwise the seconds left.
+    if (game.crewAbilities && this.el.crew) {
+      this.el.crew.querySelectorAll('.crew-status').forEach((el) => {
+        const a = game.crewAbilities.find((x) => x.who === el.dataset.who);
+        if (!a) return;
+        const text = a.left > 0 ? `${Math.ceil(a.left)}s` : 'READY';
+        if (el.textContent !== text) el.textContent = text;
+        el.style.color = a.left > 0 ? '#ff8a7a' : '#7dff8a';
+      });
+    }
     // Weapon slots: one box per owned weapon, name + ammo, active one lit.
     const slots = [];
     const { WEAPONS } = game;

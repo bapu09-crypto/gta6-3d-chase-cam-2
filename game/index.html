@@ -11,6 +11,9 @@
   #game canvas { display: block; }
   #hud { position: fixed; inset: 0; pointer-events: none; display: none;
     text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  /* Filmic finish: a subtle vignette darkening the frame edges. */
+  #vignette { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 58%, rgba(24,10,0,.38) 100%); }
   .panel { background: rgba(12, 16, 24, 0.72); border: 1px solid rgba(255,255,255,.18);
     border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(2px); }
   /* Top-left: mission block */
@@ -28,10 +31,15 @@
   #stars.hot { color: #ff5040; }
   #banner { font-size: 13px; font-weight: 700; color: #ff8a7a; margin-top: 4px; }
   #clock { font-size: 13px; font-weight: 700; color: #9fd8ff; margin-top: 4px; }
-  /* Right-middle, under the police panel: crew cards (driver / mechanic / lookout) */
-  #crew { position: absolute; top: 335px; right: 14px; width: 250px; font-size: 13px; }
+  /* Right-middle, under the police panel: crew ability cards (portrait,
+     ability, cash cost, key, READY / cooldown) */
+  #crew { position: absolute; top: 335px; right: 14px; width: 272px; font-size: 13px; }
   .crew-head { font-weight: 800; color: #9fd8ff; letter-spacing: 1px; font-size: 12px; margin-bottom: 4px; }
-  .crew-row { display: flex; justify-content: space-between; padding: 2px 0; }
+  .crew-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+  .crew-portrait { width: 36px; height: 36px; border-radius: 6px; border: 1px solid #ffd23a; flex: none; }
+  .crew-main { flex: 1; line-height: 1.35; }
+  .crew-main b { color: #ffd23a; }
+  .crew-status { font-weight: 800; color: #7dff8a; font-size: 12px; }
   .crew-row .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; }
   .crew-row span:nth-child(2) { color: #ffb36b; font-weight: 700; }
   /* Right-middle: police response */
@@ -94,6 +102,7 @@
 <div id="game"></div>
 
 <div id="hud">
+  <div id="vignette"></div>
   <div id="mission-box" class="panel">
     <div id="mission">MISSION 1 / 8 · HOMECOMING</div>
     <div id="stage">STAGE 1/1</div>
@@ -147,6 +156,7 @@
   <div class="controls">
     W/S drive &amp; walk · A/D steer &amp; turn · SPACE brake · F enter / exit car ·
     J or click attack · 1–4 weapons · R radio · P pause · drag mouse to look around<br>
+    Crew abilities: Z bribe ($800) · X jammer ($1,200) · C field fix ($500)<br>
     Progress saves automatically. Missions, money and respect carry over.
   </div>
 </div>

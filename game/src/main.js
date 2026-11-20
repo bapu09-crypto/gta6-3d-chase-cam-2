@@ -23,12 +23,20 @@ export class Game {
     this.rng = makeRng(this.seed);
     this.city = buildCity(this.seed);
     this.THREE = window.THREE;
-    const { scene } = buildWorld(this.city, this.THREE);
+    const { scene, clouds, particles } = buildWorld(this.city, this.THREE);
     this.scene = scene;
+    this.clouds = clouds || [];
+    this.particles = particles || null;
     this.camera = new this.THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 2000);
-    this.renderer = new this.THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    this.renderer = new this.THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false });
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+    // Filmic finish: ACES-style tone mapping with a warm exposure, and a
+    // high-resolution shadow map so the low sun draws crisp shadows.
+    this.renderer.toneMapping = this.THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.18;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = this.THREE.PCFSoftShadowMap;
     document.getElementById('game').appendChild(this.renderer.domElement);
 
     this.player = new Player(0, 0);
@@ -52,6 +60,15 @@ export class Game {
     this.wanted = 0;
     this.inSight = false;
     this.cooldownLeft = 0;
+    this.jammerTimer = 0;   // while > 0 the police radio is jammed: no unit can see the player
+    // Crew abilities, usable in play: Dario bribes the heat down, Tomas
+    // jams the police radio, Nadia repairs the car in the field. Each has
+    // a cash cost and a cooldown; the HUD shows all three with portraits.
+    this.crewAbilities = [
+      { who: 'DARIO', name: 'BRIBE', desc: 'Heat drops 2 stars', cost: 800, cooldown: 45, left: 0, key: 'Z' },
+      { who: 'TOMAS', name: 'JAMMER', desc: 'Police radio jammed 12s', cost: 1200, cooldown: 60, left: 0, key: 'X' },
+      { who: 'NADIA', name: 'FIELD FIX', desc: 'Repairs the car fully', cost: 500, cooldown: 30, left: 0, key: 'C' },
+    ];
     this.respect = 0;
     this.district = districtAt(0, 0);
     this.now = 0;
@@ -91,6 +108,9 @@ export class Game {
       if (e.code === 'Enter' && !this.started) this.startGame();
       if (e.code === 'KeyF') this.toggleCar();
       if (e.code === 'KeyR') { this.radio.nextStation(); }
+      if (e.code === 'KeyZ') this.useCrewAbility(0);
+      if (e.code === 'KeyX') this.useCrewAbility(1);
+      if (e.code === 'KeyC') this.useCrewAbility(2);
       if (e.code === 'KeyP' || e.code === 'Escape') this.togglePause();
       if (e.code.startsWith('Digit')) {
         const n = parseInt(e.code.slice(5), 10) - 1;
@@ -123,6 +143,39 @@ export class Game {
     document.getElementById('start-screen').style.display = 'none';
     this.hud.setVisible(true);
     this.log('Welcome to Coraluna. Mission 1: Homecoming.');
+  }
+
+  // Use one of the three crew abilities. Each costs cash and then cools
+  // down; a bribe drops the wanted level by two stars, the jammer blinds
+  // the police radio for twelve seconds, and the field fix restores the
+  // car the player is driving to full condition.
+  useCrewAbility(idx) {
+    if (!this.started || this.paused || this.player.dead) return false;
+    const a = this.crewAbilities[idx];
+    if (!a || a.left > 0) return false;
+    if (this.player.money < a.cost) {
+      this.log(`${a.name} needs $${a.cost} — you are short.`);
+      return false;
+    }
+    this.player.money -= a.cost;
+    a.left = a.cooldown;
+    if (a.name === 'BRIBE') {
+      this.setWanted(Math.max(0, this.wanted - 2));
+      this.log(`Dario paid off a contact — heat drops to ${this.wanted} stars.`);
+    } else if (a.name === 'JAMMER') {
+      this.jammerTimer = 12;
+      this.log('Tomas is jamming the police radio — they cannot coordinate.');
+    } else if (a.name === 'FIELD FIX') {
+      if (this.player.inCar) {
+        this.player.inCar.condition = 100;
+        this.player.inCar.wrecked = false;
+        this.log('Nadia talked you through a field fix — the car is whole again.');
+      } else {
+        this.player.heal(25);
+        this.log('Nadia patched you up on the spot.');
+      }
+    }
+    return true;
   }
 
   togglePause() {
@@ -166,14 +219,14 @@ export class Game {
     // Parked stealable cars around the city.
     this.parkSpots = [[1, 1], [5, 1], [1, 3], [5, 5], [3, 1], [6, 4], [2, 6], [4, 2]];
     this.parkSpots.forEach(([i, j], k) => this.spawnParkedCar(i, j, k));
-    // Traffic: a busy coastal city, not an empty grid.
-    for (let k = 0; k < 16; k++) {
+    // Traffic: a busy coastal city, not an empty grid — denser for round 4.
+    for (let k = 0; k < 26; k++) {
       const car = makeTrafficCar(this.city, this.rng, k, this.THREE, makeCarMesh, carColourFor);
       this.scene.add(car.mesh);
       this.cars.push(car); this.traffic.push(car);
     }
-    // Pedestrians.
-    for (let k = 0; k < 30; k++) this.spawnPed();
+    // Pedestrians — denser for round 4.
+    for (let k = 0; k < 48; k++) this.spawnPed();
   }
 
   spawnParkedCar(i, j, k) {
@@ -234,7 +287,7 @@ export class Game {
   }
 
   syncPolice() {
-    const want = this.wanted === 0 ? 0 : Math.min(2 + this.wanted, 6);
+    const want = this.wanted === 0 ? 0 : Math.min(3 + this.wanted, 7);
     while (this.policeUnits.length < want) this.spawnPoliceUnit();
     while (this.policeUnits.length > want) {
       const u = this.policeUnits.pop();
@@ -293,7 +346,10 @@ export class Game {
 
   updateWanted(dt) {
     if (this.wanted === 0) { this.inSight = false; this.losTimer = 0; return; }
-    const groundSight = this.policeUnits.some(u => this.unitSees(u));
+    // While the jammer runs, no ground unit can report the player: the
+    // radio is dead, so line of sight is never established.
+    const groundSight = this.jammerTimer > 0 ? false
+      : this.policeUnits.some(u => this.unitSees(u));
     // The helicopter loses the player if no ground unit has seen them for
     // 4 seconds: it breaks off to search elsewhere instead of hovering
     // forever, which is what makes a 4-star manhunt loseable.
@@ -653,6 +709,18 @@ export class Game {
     }
     this.heli.update(dt, this.px(), this.pz(), this.now);
     this.updateWanted(dt);
+    // Crew ability cooldowns tick down, and the jammer window runs out.
+    for (const a of this.crewAbilities) a.left = Math.max(0, a.left - dt);
+    this.jammerTimer = Math.max(0, this.jammerTimer - dt);
+    // The sky drifts: clouds slide slowly east, dust hangs and sways.
+    for (const c of this.clouds) {
+      c.position.x += dt * 0.7;
+      if (c.position.x > 430) c.position.x = -430;
+    }
+    if (this.particles) {
+      this.particles.position.x = Math.sin(this.now * 0.04) * 8;
+      this.particles.position.z = Math.cos(this.now * 0.03) * 8;
+    }
 
     // --- pedestrians ---
     this.updatePeds(dt);
@@ -813,8 +881,10 @@ export class Game {
     const p = this.player;
     const heading = this.playerHeading() + this.camYaw;
     const px = this.px(), pz = this.pz();
-    const back = p.inCar ? 12 : 8;
-    const height = p.inCar ? 4.6 : 3.4;
+    // The chase camera sits close behind the hero car in round 4, so the
+    // glossy car fills the frame the way the leaders' does.
+    const back = p.inCar ? 9.5 : 8;
+    const height = p.inCar ? 4.2 : 3.4;
     const tx = px - Math.sin(heading) * back;
     const tz = pz - Math.cos(heading) * back;
     const k = Math.min(1, dt * 4);
@@ -904,6 +974,11 @@ if (IS_REACH) {
   stageShot(game, params.get('shot') || 'cover');
   game.startGame();
   game.update(0.05);
+  // Staging safety net: the single tick can still clip the hero car
+  // against a unit that closed in, so the staged car is presented at
+  // full condition, the way the shot was staged.
+  if (game.player.inCar) game.player.inCar.condition = 100;
+  game.hud.update(game, game.now);
   game.renderer.render(game.scene, game.camera);
   document.title = 'SHOT-READY';
 } else {

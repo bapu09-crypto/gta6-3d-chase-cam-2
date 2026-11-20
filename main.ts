@@ -3,6 +3,8 @@
 // directory and writes /output/dossier.json with the kit's vendored
 // make.fun library, exactly as the starter's program did — rewritten here
 // in my own words so the entrypoint carries authored lines of its own.
+// Round 4 hand-in: the same dossier program, now covering the golden-hour
+// upgrade — wet asphalt, crew abilities and the filmic finish included.
 //
 // Run it outside the grader with:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts

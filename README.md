@@ -39,7 +39,13 @@ beacon on the pier.
 - **HUD** — mission header + stage + objective, named-police panel, wanted stars,
   money, health/armour bars with readable numbers, weapon slots with ammo,
   a circular minimap with route and search zone, speed + car name + condition, radio station, district label, a respect rank bar (Rookie → Legend of Coraluna),
-  crew cards for Dario, Nadia and Tomas, and a time-of-day clock.
+  crew ability cards for Dario, Nadia and Tomas — Bribe, Jammer and Field Fix,
+  each with a portrait, a cash cost and a cooldown — and a time-of-day clock.
+- **Golden-hour grade** — gradient sky dome with drifting clouds, a low warm sun
+  with crisp 2048px shadows, ACES filmic tone mapping, a subtle vignette, wet
+  asphalt with long golden streak reflections and painted markings, buildings
+  with lit windows from a window-pattern atlas, lamp posts with pools of light,
+  and drifting dust and embers. The hero car wears a clearcoat gloss finish.
 - **Radio** — three procedural WebAudio stations: SOL 98.1 Island Pop,
   MAREA 104.5 Reggae Marea, NOCHE 89.3 Synthwave, plus engine hum, sirens,
   gunshots and crash sounds.
@@ -55,6 +61,7 @@ beacon on the pier.
 | F | Enter / exit car (walk up to a parked car to steal it) |
 | J or click | Attack (fists / firearm) |
 | 1–4 | Switch weapon |
+| Z / X / C | Crew abilities: Bribe ($800) / Jammer ($1,200) / Field Fix ($500) |
 | R | Change radio station |
 | P / Esc | Pause |
 | Drag mouse | Look around |
