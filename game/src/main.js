@@ -48,11 +48,11 @@ export class Game {
     this.hud = new Hud(document);
     this.WEAPONS = WEAPONS;
 
-    this.cars = [];          // every car: traffic, parked, police, mission
+    this.cars = [];
     this.traffic = [];
     this.parked = [];
     this.policeUnits = [];
-    this.missionCars = [];   // vans / limo / escort van of the current stage
+    this.missionCars = [];
     this.peds = [];
     this.enemies = [];
     this.heli = new Helicopter(makeHeliMesh(this.THREE));
@@ -61,13 +61,21 @@ export class Game {
     this.wanted = 0;
     this.inSight = false;
     this.cooldownLeft = 0;
-    this.jammerTimer = 0;   // while > 0 the police radio is jammed: no unit can see the player
+    this.jammerTimer = 0;
     this.crewAbilities = [
       { who: 'DARIO', name: 'BRIBE', desc: 'Heat drops 2 stars', cost: 800, cooldown: 45, left: 0, key: 'Z' },
       { who: 'TOMAS', name: 'JAMMER', desc: 'Police radio jammed 12s', cost: 1200, cooldown: 60, left: 0, key: 'X' },
       { who: 'NADIA', name: 'FIELD FIX', desc: 'Repairs the car fully', cost: 500, cooldown: 30, left: 0, key: 'C' },
     ];
     this.respect = 0;
+    this.carsStolen = 0;
+    this.policeEscaped = 0;
+    this.distanceDriven = 0;
+    this.maxWanted = 0;
+    this.visitedDistricts = new Set();
+    this.stageStartDist = 0;
+    this.stageStartWanted = 0;
+    this.shotCam = null;
     this.district = districtAt(0, 0);
     this.now = 0;
     this.elapsed = 0;
@@ -81,7 +89,7 @@ export class Game {
     this.ramCooldown = 0;
     this.escortFailTimer = 0;
     this.saveTimer = 0;
-    this.camYaw = 0;         // orbit offset around the player
+    this.camYaw = 0;
     this.logLines = [];
     this.autotest = null;
     this.reachResult = null;
@@ -257,7 +265,7 @@ export class Game {
     const nodes = this.city.graph.nodes;
     const n = Math.floor(this.rng() * nodes.length);
     const shirt = pick(this.rng, [0xd83a2e, 0x2e6fd8, 0xe8b64c, 0xeeeeee, 0x3aa84c, 0xd8704c]);
-    const skin = pick(this.rng, [0xc98a4a, 0x8a5a3a, 0xe8b88a, 0x6a4a2a]);
+    const skin = pick(this.rng, [0xc98a4a, 0x8a5a3a, 0xe8b88a, 0x6a4a2a, 0xd8a070, 0x5a3a22]);
     const mesh = makePedMesh(this.THREE, shirt, skin);
     this.scene.add(mesh);
     const ped = {
@@ -273,6 +281,8 @@ export class Game {
   setWanted(n) {
     n = clamp(n, 0, 5);
     if (n === this.wanted) return;
+    if (n === 0 && this.wanted > 0) this.policeEscaped++;
+    if (n > this.maxWanted) this.maxWanted = n;
     this.wanted = n;
     this.cooldownLeft = 3 + n * 1.5;
     this.syncPolice();
@@ -377,6 +387,9 @@ export class Game {
     if (s.type === 'ram') this.spawnLimo();
     if (s.type === 'combat') this.startCombatStage();
     this.updateObjective();
+    this.stageStartDist = this.objectivePos
+      ? dist(this.px(), this.pz(), this.objectivePos.x, this.objectivePos.z) : 0;
+    this.stageStartWanted = this.wanted;
   }
 
   spawnVans() {
@@ -408,7 +421,7 @@ export class Game {
       name: 'NADIA\'S VAN', colour: 0x3aa84c,
       isTarget: true, cruise: 12, maxSpeed: 22,
     });
-    van.condition = 250; // the escort van is the mission: it must survive police love-taps
+    van.condition = 250;
     van.mesh = makeCarMesh(this.THREE, 0x3aa84c, false);
     van.goalNode = LOCATIONS.harbour;
     this.scene.add(van.mesh);
@@ -452,7 +465,9 @@ export class Game {
       const x = pier.endX + 20 + this.rng() * 55;
       const z = pier.z0 + 4 + this.rng() * (pier.z1 - pier.z0 - 8);
       const boss = n === 1 && this.missions.stageIdx === 1;
-      const mesh = makePedMesh(this.THREE, boss ? 0x14141a : 0x8a1a1a, 0xc98a4a);
+      const skins = [0xc98a4a, 0x8a5a3a, 0xe8b88a, 0x6a4a2a, 0xd8a070];
+      const skin = boss ? 0xc0a080 : skins[Math.floor(this.rng() * skins.length)];
+      const mesh = makePedMesh(this.THREE, boss ? 0x14141a : 0x8a1a1a, skin);
       this.scene.add(mesh);
       const enemy = {
         x, z, health: boss ? 220 : 60, mesh, shootTimer: 1 + this.rng(),
@@ -473,6 +488,7 @@ export class Game {
       this.routeNodes = null;
     }
     this.district = districtAt(this.px(), this.pz());
+    this.visitedDistricts.add(this.district.name);
   }
 
   checkMission(dt) {
@@ -591,7 +607,10 @@ export class Game {
     } else {
       const car = this.player.tryEnterCar(this.cars.filter(c => c.stealable || c.owned));
       if (car) {
-        if (car.stolen) this.setWanted(Math.max(this.wanted, 1));
+        if (car.stolen) {
+          this.carsStolen++;
+          this.setWanted(Math.max(this.wanted, 1));
+        }
         this.radio.setEngine(0, true);
       }
     }
@@ -690,6 +709,8 @@ export class Game {
     this.updatePeds(dt);
 
     this.updateEnemies(dt);
+
+    if (p.inCar) this.distanceDriven += Math.abs(p.inCar.speed) * dt;
 
     this.checkMission(dt);
     if (Math.floor(this.elapsed * 2) !== Math.floor((this.elapsed - dt) * 2)) {
@@ -837,8 +858,8 @@ export class Game {
     const p = this.player;
     const heading = this.playerHeading() + this.camYaw;
     const px = this.px(), pz = this.pz();
-    const back = p.inCar ? 9.5 : 8;
-    const height = p.inCar ? 4.2 : 3.4;
+    const back = this.shotCam ? this.shotCam.back : (p.inCar ? 9.5 : 8);
+    const height = this.shotCam ? this.shotCam.height : (p.inCar ? 4.2 : 3.4);
     const tx = px - Math.sin(heading) * back;
     const tz = pz - Math.cos(heading) * back;
     const k = Math.min(1, dt * 4);
@@ -855,8 +876,13 @@ export class Game {
         respect: this.respect,
         missionIdx: this.missions.missionIdx,
         health: this.player.health,
+        carsStolen: this.carsStolen,
+        policeEscaped: this.policeEscaped,
+        distanceDriven: Math.round(this.distanceDriven),
+        maxWanted: this.maxWanted,
+        visited: [...this.visitedDistricts],
       }));
-    } catch (e) { /* storage may be unavailable */ }
+    } catch (e) { /* no storage */ }
   }
 
   loadSave() {
@@ -871,8 +897,13 @@ export class Game {
         this.missions.missionIdx = s.missionIdx;
       }
       if (typeof s.health === 'number') this.player.health = s.health;
+      if (typeof s.carsStolen === 'number') this.carsStolen = s.carsStolen;
+      if (typeof s.policeEscaped === 'number') this.policeEscaped = s.policeEscaped;
+      if (typeof s.distanceDriven === 'number') this.distanceDriven = s.distanceDriven;
+      if (typeof s.maxWanted === 'number') this.maxWanted = s.maxWanted;
+      if (Array.isArray(s.visited)) this.visitedDistricts = new Set(s.visited);
       this.log('Save loaded — welcome back to Coraluna.');
-    } catch (e) { /* corrupt save: start fresh */ }
+    } catch (e) { /* bad save */ }
   }
 
   run() {
@@ -888,7 +919,7 @@ export class Game {
         if (frame % 12 === 0) this.renderer.render(this.scene, this.camera);
         if (this.autotest.finished) {
           this.autotest.report();
-          return; // stop the loop: no further frame is scheduled
+          return;
         }
       } else if (!this.paused) {
         this.update(dt);

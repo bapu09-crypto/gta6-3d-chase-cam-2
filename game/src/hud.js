@@ -1,7 +1,36 @@
 // hud.js — Coraluna's dense HUD: mission header, police panel, stars,
-import { CHARACTERS, MISSIONS } from './missions.js';
-import { DISTRICTS, HALF } from './city.js';
+import { CHARACTERS, MISSIONS, LOCATIONS } from './missions.js';
+import { DISTRICTS, HALF, districtAt, nodePos } from './city.js';
 import { dist } from './util.js';
+
+const PLACES = [
+  { node: LOCATIONS.garage, letter: 'G', colour: '#7dff8a', label: 'GARAGE — NADIA\'S WORKSHOP' },
+  { node: LOCATIONS.market, letter: 'M', colour: '#ffd23a', label: 'MARKET — PACKAGE PICKUP' },
+  { node: LOCATIONS.pierGate, letter: 'P', colour: '#4c9fd8', label: 'PIER GATE — ELENA\'S BOAT' },
+  { node: LOCATIONS.harbour, letter: 'H', colour: '#5ad8d8', label: 'HARBOUR — SAFE PASSAGE DROP' },
+  { node: 38, letter: 'S', colour: '#ffffff', label: 'SAFEHOUSE — THE CLINIC' },
+  { node: LOCATIONS.lookout, letter: 'L', colour: '#c08aff', label: 'LOOKOUT — TOMAS WATCHES FROM HERE' },
+];
+
+function missionDistrict(m) {
+  for (let i = m.stages.length - 1; i >= 0; i--) {
+    const s = m.stages[i];
+    const node = s.node !== undefined ? s.node : s.to;
+    if (node === undefined) continue;
+    const p = nodePos(node);
+    const d = districtAt(p.x, p.z);
+    return d.name === 'THE PIER' ? 'PUERTO AZUL' : d.name;
+  }
+  return 'PLAZA CENTRAL';
+}
+
+function districtPct(game, d) {
+  const done = game.missions.done ? MISSIONS.length : game.missions.missionIdx;
+  const mine = MISSIONS.filter((m) => missionDistrict(m) === d.name);
+  if (mine.length === 0) return game.visitedDistricts.has(d.name) ? 100 : 0;
+  const finished = mine.filter((m) => m.id - 1 < done).length;
+  return Math.round((finished / mine.length) * 100);
+}
 
 const RANK_NAMES = [
   [0, 'ROOKIE'], [150, 'HUSTLER'], [400, 'FIXER'], [800, 'SHOT CALLER'],
@@ -68,8 +97,16 @@ export class Hud {
       'money', 'health', 'armour', 'healthnum', 'armournum', 'weapons', 'speed', 'carname', 'carcond',
       'radio', 'district', 'respect', 'rank', 'dialogue', 'dlgname', 'dlgrole',
       'dlgtext', 'banner', 'timer', 'clock', 'crew', 'minimap', 'portrait', 'hud', 'wantedlabel',
-      'pause-missions', 'pause-stats', 'pause-map', 'pause-district']) {
+      'stagebar', 'stagepct',
+      'pause-missions', 'pause-stats', 'pause-map', 'pause-district',
+      'pause-saves', 'pause-legend', 'pause-career', 'pause-controls']) {
       this.el[id] = root.querySelector('#' + id);
+    }
+    this.pauseTab = 'map';
+    if (root.querySelectorAll) {
+      root.querySelectorAll('.pause-tab').forEach((btn) => {
+        btn.addEventListener('click', () => this.setPauseTab(btn.dataset.tab));
+      });
     }
     this.mapCtx = this.el.minimap ? this.el.minimap.getContext('2d') : null;
     this.lastPortraitWho = null;
@@ -94,6 +131,16 @@ export class Hud {
     }
   }
 
+  setPauseTab(tab) {
+    this.pauseTab = tab;
+    document.querySelectorAll('.pause-tab').forEach((b) => {
+      b.classList.toggle('active', b.dataset.tab === tab);
+    });
+    document.querySelectorAll('.pause-pane').forEach((p) => {
+      p.classList.toggle('active', p.dataset.pane === tab);
+    });
+  }
+
   setVisible(v) { if (this.el.hud) this.el.hud.style.display = v ? 'block' : 'none'; }
 
   drawPauseScreen(game) {
@@ -112,12 +159,43 @@ export class Hud {
       }
       this.el['pause-missions'].innerHTML = html;
     }
+    const pct = Math.round((doneCount / MISSIONS.length) * 100);
+    const km = (game.distanceDriven / 1000).toFixed(1);
+    const cell = (label, value, sub) => `<div class="stat-cell"><div class="stat-label">${label}</div>`
+      + `<div class="stat-value">${value}</div><div class="stat-sub">${sub}</div></div>`;
     if (this.el['pause-stats']) {
-      const pct = Math.round((doneCount / MISSIONS.length) * 100);
-      this.el['pause-stats'].innerHTML =
-        `MONEY <b>$${Math.floor(game.player.money).toLocaleString('en-US')}</b> &nbsp;·&nbsp; `
-        + `RESPECT <span class="rank-gold">${rank.name} ${game.respect}</span><br>`
-        + `STORY ${pct}% COMPLETE · ${doneCount} OF 8 MISSIONS DONE · ${game.wanted > 0 ? game.wanted + '★ WANTED' : 'CLEAN'}`;
+      this.el['pause-stats'].innerHTML = '<div class="pause-head">CAREER · DARIO FUENTES</div><div class="stat-grid">'
+        + cell('MONEY', '$' + Math.floor(game.player.money).toLocaleString('en-US'), 'cash')
+        + cell('RESPECT', game.respect, rank.name)
+        + cell('STORY', pct + '%', doneCount + ' of 8 done')
+        + cell('DISTRICTS', game.visitedDistricts.size + ' / 8', 'explored')
+        + cell('CARS STOLEN', game.carsStolen, 'taken')
+        + cell('POLICE ESCAPED', game.policeEscaped, 'escaped')
+        + cell('DISTANCE DRIVEN', km + ' km', 'driven')
+        + cell('HIGHEST WANTED', game.maxWanted + '★', game.wanted > 0 ? 'currently ' + game.wanted + '★' : 'now clean')
+        + '</div>';
+    }
+    if (this.el['pause-saves']) {
+      const slot1 = `MISSION ${mc.done ? 8 : mc.missionIdx + 1} · $${Math.floor(game.player.money).toLocaleString('en-US')} · ${game.timeOfDay()} · ${rank.name}`;
+      this.el['pause-saves'].innerHTML = '<div class="pause-head">SAVE SLOTS</div>'
+        + `<div class="save-slot"><span>SLOT 1 · CURRENT RUN</span><span class="slot-full">${slot1}</span></div>`
+        + '<div class="save-slot"><span>SLOT 2</span><span class="slot-empty">EMPTY</span></div>'
+        + '<div class="save-slot"><span>SLOT 3</span><span class="slot-empty">EMPTY</span></div>';
+    }
+    if (this.el['pause-legend']) {
+      this.el['pause-legend'].innerHTML = PLACES.map((pl) =>
+        `<b>${pl.letter}</b> ${pl.label}`).join('<br>')
+        + `<br>8 story missions · ${doneCount} done · ${game.visitedDistricts.size} of 8 districts explored`;
+    }
+    if (this.el['pause-career']) {
+      this.el['pause-career'].innerHTML = DISTRICTS.map((d) =>
+        `${d.name} — <b>${districtPct(game, d)}%</b>`).join('<br>')
+        + `<br>Overall story completion: <b>${pct}%</b> · Districts explored: <b>${game.visitedDistricts.size} / 8</b>`;
+    }
+    if (this.el['pause-controls']) {
+      this.el['pause-controls'].innerHTML = 'W/S drive &amp; walk · A/D steer &amp; turn · SPACE brake<br>'
+        + 'F enter / exit car · J or click attack · 1–4 weapons · R radio · P pause<br>'
+        + 'Crew: Z bribe ($800) · X jammer ($1,200) · C field fix ($500)';
     }
     if (this.el['pause-district']) this.el['pause-district'].textContent = game.district.name + ' · ' + game.timeOfDay();
     const cv = this.el['pause-map'];
@@ -165,6 +243,18 @@ export class Hud {
     for (const n of game.city.graph.nodes) {
       const [nx, nz] = toMap(n.x, n.z);
       ctx.beginPath(); ctx.arc(nx, nz, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+    for (const pl of PLACES) {
+      const p = nodePos(pl.node);
+      const [mx, mz] = toMap(p.x, p.z);
+      ctx.fillStyle = pl.colour;
+      ctx.beginPath(); ctx.arc(mx, mz, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#141414'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#141414';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(pl.letter, mx, mz + 3.5);
+      ctx.textAlign = 'left';
     }
     const route = game.routeNodes;
     if (route && route.length > 1) {
@@ -221,7 +311,7 @@ export class Hud {
         ctx.fillStyle = d.colour;
         ctx.fillRect(cx, cy - 9, 10, 10);
         ctx.fillStyle = '#d8dce2';
-        ctx.fillText(d.short || d.name, cx + 14, cy);
+        ctx.fillText(`${d.short || d.name} ${districtPct(game, d)}%`, cx + 14, cy);
       });
       const keyY = bandTop + 58;
       ctx.fillStyle = '#ffffff';
@@ -300,8 +390,8 @@ export class Hud {
       this.setText('carcond', `CONDITION ${Math.ceil(car.condition)}%${car.wrecked ? ' · WRECKED' : ''}`);
     } else {
       this.setText('speed', 'ON FOOT');
-      this.setText('carname', '—');
-      this.setText('carcond', 'WALKING');
+      this.setText('carname', 'DARIO FUENTES');
+      this.setText('carcond', 'WALKING · NO VEHICLE');
     }
     this.setText('radio', game.radio.stationName() + ' — ' + game.radio.nowPlaying());
     this.setText('district', game.district.name);
@@ -309,6 +399,19 @@ export class Hud {
     this.setText('rank', `RESPECT · ${rank.name} ${game.respect} / ${rank.next}`);
     const rb = this.el.respect;
     if (rb) rb.style.width = Math.min(100, ((game.respect - rank.cur) / Math.max(1, rank.next - rank.cur)) * 100) + '%';
+    const s0 = mc.stage;
+    let frac = 0;
+    if (s0) {
+      if (s0.type === 'wreck' || s0.type === 'ram') frac = s0.count ? mc.progress / s0.count : 0;
+      else if (s0.type === 'combat') frac = s0.waves ? mc.progress / s0.waves : 0;
+      else if (s0.type === 'lose') frac = game.stageStartWanted > 0 ? (game.stageStartWanted - game.wanted) / game.stageStartWanted : 0;
+      else if (game.objectivePos && game.stageStartDist > 0) {
+        frac = 1 - dist(game.px(), game.pz(), game.objectivePos.x, game.objectivePos.z) / game.stageStartDist;
+      }
+    }
+    frac = Math.max(0, Math.min(1, frac));
+    if (this.el.stagebar) this.el.stagebar.style.width = Math.round(frac * 100) + '%';
+    this.setText('stagepct', Math.round(frac * 100) + '%');
     const units = game.policeUnits.slice().sort((a, b) =>
       a.distanceTo(game.px(), game.pz()) - b.distanceTo(game.px(), game.pz()));
     const shown = units.slice(0, 5);
@@ -316,6 +419,10 @@ export class Hud {
     for (const u of shown) {
       const d = Math.round(u.distanceTo(game.px(), game.pz()));
       html += `<div class="police-row"><span>${u.callsign}</span><span>${u.role}</span><span>${d}m</span></div>`;
+    }
+    if (units.length > shown.length) {
+      const extra = units.length - shown.length;
+      html += `<div class="police-more">+${extra} MORE UNIT${extra > 1 ? 'S' : ''} ON THE WAY</div>`;
     }
     if (units.length === 0) html = '<div class="police-head">CPD RESPONSE · NO UNITS NEARBY</div>';
     if (this.el.police) this.el.police.innerHTML = html;

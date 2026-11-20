@@ -78,7 +78,7 @@ export class Radio {
       const target = inCar ? 0.03 + Math.min(0.09, Math.abs(speedKmh) / 1400) : 0;
       this.engineGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.1);
       this.engineOsc.frequency.setTargetAtTime(50 + Math.abs(speedKmh) * 1.1, this.ctx.currentTime, 0.1);
-    } catch (e) { /* audio is best-effort */ }
+    } catch (e) { /* no audio */ }
   }
 
   setSiren(wanted) {
@@ -92,7 +92,7 @@ export class Radio {
         this.sirenOsc.frequency.linearRampToValueAtTime(880, t + 0.4);
         this.sirenOsc.frequency.linearRampToValueAtTime(660, t + 0.8);
       }
-    } catch (e) { /* best-effort */ }
+    } catch (e) { /* no audio */ }
   }
 
   update(now) {
@@ -106,7 +106,7 @@ export class Radio {
         this.nextStepTime += stepDur;
         if (this.step % 64 === 0) this.trackIdx++;
       }
-    } catch (e) { /* best-effort */ }
+    } catch (e) { /* no audio */ }
   }
 
   scheduleStep(st, step, t, stepDur) {

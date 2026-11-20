@@ -50,7 +50,7 @@ export function runAutotest(game) {
     let best = null, bestD = Infinity;
     for (const c of game.parked) {
       if (c.wrecked || c === p.inCar) continue;
-      if (excludeOwned && c.owned) continue; // the steal stage needs a car that is not Dario's own
+      if (excludeOwned && c.owned) continue;
       const d = dist(p.x, p.z, c.x, c.z);
       if (d < bestD) { bestD = d; best = c; }
     }
@@ -372,11 +372,14 @@ export function stageShot(game, name) {
     }
   }
   function placePeds(spots) {
+    const tones = [0xc98a4a, 0x8a5a3a, 0xe8b88a, 0x6a4a2a, 0xd8a070, 0x5a3a22];
     game.peds.slice(0, spots.length).forEach((ped, i) => {
       const [dx, dz] = spots[i];
       ped.x = game.px() + dx; ped.z = game.pz() + dz;
       ped.mesh.position.set(ped.x, 0, ped.z);
       ped.mesh.rotation.y = (i % 2 ? 1 : -1) * Math.PI / 2;
+      const head = ped.mesh.children[1];
+      if (head && head.material) head.material.color.setHex(tones[i % tones.length]);
     });
   }
   function playerCar(name, colour) {
@@ -409,9 +412,9 @@ export function stageShot(game, name) {
     return g;
   }
   function addNameTag(x, y, z, label, health, maxHealth) {
-    // A floating name plate that always faces the camera: gold name on a
-    // dark plate with a red health bar underneath, so the marked fighter
-    // reads at thumbnail size even when the figures are small.
+
+
+
     const T = game.THREE;
     const cv = document.createElement('canvas');
     cv.width = 256; cv.height = 72;
@@ -434,6 +437,36 @@ export function stageShot(game, name) {
     tag.scale.set(4.4, 1.24, 1);
     tag.position.set(x, y, z);
     game.scene.add(tag);
+    return tag;
+  }
+  function addTargetMarker(car) {
+
+
+    const T = game.THREE;
+    const cv = document.createElement('canvas');
+    cv.width = 256; cv.height = 96;
+    const c = cv.getContext('2d');
+    c.fillStyle = 'rgba(12, 8, 10, 0.88)';
+    c.fillRect(0, 0, 256, 96);
+    c.strokeStyle = '#ffd23a';
+    c.lineWidth = 4;
+    c.strokeRect(2, 2, 252, 92);
+    c.fillStyle = '#ffd23a';
+    c.beginPath();
+    c.moveTo(128, 80); c.lineTo(112, 58); c.lineTo(144, 58);
+    c.closePath(); c.fill();
+    c.font = 'bold 30px sans-serif';
+    c.textAlign = 'center';
+    c.fillText('TARGET', 128, 44);
+    const tex = new T.CanvasTexture(cv);
+    const tag = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    tag.scale.set(5.6, 2.1, 1);
+    tag.position.set(car.x, 4.2, car.z);
+    game.scene.add(tag);
+    const gem = new T.Mesh(new T.OctahedronGeometry(0.6),
+      new T.MeshBasicMaterial({ color: 0xffd23a }));
+    gem.position.set(car.x, 2.8, car.z);
+    game.scene.add(gem);
     return tag;
   }
   function addNightBeams(car) {
@@ -462,42 +495,40 @@ export function stageShot(game, name) {
     setMission(2, 1, 0);
     const car = playerCar('SOLANO GT', 0xd83a2e);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
-    // Round 7: the coast road. The westernmost avenue (x = -192) runs the
-    // length of Playa Serena with the beach and the sea just beyond it, so
-    // the car drives south along the water instead of down an inland street.
-    // The sea sits to the car's right, the pier ahead over the bay. The car
-    // stops 18 m short of the pier-gate node, so the staged frame still
-    // shows the Drop in progress instead of completing it on the spot, and
-    // the nearest billboard sits 50 m up the road instead of looming over
-    // the car. The camera is swung a touch toward the water so the sea
-    // fills the right of the frame and the hero car reads three-quarter.
-    placeCar(car, -192, -110, 0);
-    car.speed = 23.8;   // 86 km/h: fast, but not rank 1's 111
+
+
+
+
+
+    placeCar(car, -192, -110, -0.18);
+    car.speed = 23.8;
     p.money = 7400; game.respect = 210;
     p.health = 92; p.armour = 60;
     p.weaponIdx = 1; p.weaponsOwned = [true, true, true, false];
     game.clockMinutes = 17 * 60 + 12;
-    // Police stay on the road: the coast road is only 14 m wide, so every
-    // lateral offset is kept inside the asphalt and off the sand.
+    game.shotCam = { back: 8.0, height: 4.6 };
     setPolice(3, [[6, 21, 0], [-5, 32, 0], [8, 46, 0],
-      [-4, -22, 0], [7, 60, 0], [-5, 74, 0]], -18, 30, 13);
+      [-4, -22, 0], [7, 60, 0], [-5, 74, 0]], -24, 20, 15);
     placeTraffic([[2, 28, 0], [-3, 44, 0], [3, 62, 0],
       [-2, 82, Math.PI], [5, 100, 0], [-4, -30, 0]]);
     placePeds([[10, 14], [-11, 30], [10, 44], [-11, 58], [10, 72], [-11, 86]]);
     game.missions.say('ELENA', 'Package is in the boot, Dario. Pier gate, no detours — the CPD is already circling.', game.now);
-    game.camYaw = -0.25;
+    game.camYaw = -0.62;
   } else if (name === 'chase') {
     game.setNight(true);
     setMission(5, 0, 2);
     const car = playerCar('AZABACHE GT', 0xe8e8e8);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
     placeCar(car, 128, 64, Math.PI);
-    car.speed = 27.2;   // 98 km/h
+    car.speed = 27.2;
     const bodyMat = car.mesh.children[0].material;
     if (bodyMat.emissive) bodyMat.emissive.setHex(0x404040);
     addNightBeams(car);
     const limo = game.missionCars[0];
-    if (limo) placeCar(limo, 128, 8, Math.PI);
+    if (limo) {
+      placeCar(limo, 128, 24, Math.PI);
+      addTargetMarker(limo);
+    }
     p.money = 19600; game.respect = 980;
     p.health = 85; p.armour = 45;
     p.weaponIdx = 2; p.weaponsOwned = [true, true, true, true];
@@ -512,6 +543,12 @@ export function stageShot(game, name) {
   } else if (name === 'pause') {
     game.setNight(false);
     setMission(6, 0, 0);
+
+
+    game.carsStolen = 4; game.policeEscaped = 6;
+    game.distanceDriven = 48200; game.maxWanted = 4;
+    game.visitedDistricts = new Set(['PLAZA CENTRAL', 'MERCADO VIEJO', 'PUERTO AZUL',
+      'PLAYA SERENA', 'LAS TORRES', 'COLINA VERDE']);
     const car = playerCar('BRISA COUPE', 0x3aa84c);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
     placeCar(car, 0, 0, 0);
@@ -563,8 +600,8 @@ export function stageShot(game, name) {
         new T.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.45 }));
       glow.position.set(boss.x - 0.7, 1.25, boss.z);
       game.scene.add(glow);
-      // Round 7: mark Vidal so the fight reads at a glance — his name and
-      // the health he has left, floating just above his head.
+
+
       addNameTag(boss.x, 2.9, boss.z, 'MARCOS VIDAL', boss.health, 220);
     }
     const before = game.enemies.length;

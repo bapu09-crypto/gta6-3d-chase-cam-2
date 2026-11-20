@@ -8,12 +8,12 @@ export const CAR_NAMES = [
 ];
 export const VAN_NAMES = ['CORREOS VAN', 'MERCADO VAN', 'PUERTO VAN'];
 
-const RAM_SPEED = 3.0;      // lesson 11: light contact still counts as a ram
-const HEAT_SPEED = 8.0;     // only harder impacts raise police heat
-const BUILDING_HIT_GAP = 0.5; // lesson 3: building damage at most twice a second
-const LOOKAHEAD = 5;        // lesson 8: short lookahead, metres
-const CLOSE_RANGE = 42;     // lesson 12: direct pursuit inside this range
-const STUCK_TIME = 2.5;     // lesson 9: seconds of throttle with no movement
+const RAM_SPEED = 3.0;
+const HEAT_SPEED = 8.0;
+const BUILDING_HIT_GAP = 0.5;
+const LOOKAHEAD = 5;
+const CLOSE_RANGE = 42;
+const STUCK_TIME = 2.5;
 
 export class Car {
   constructor(opts) {
@@ -24,7 +24,7 @@ export class Car {
     this.name = opts.name || 'AZABACHE GT';
     this.colour = opts.colour || 0xd83a2e;
     this.isPolice = !!opts.isPolice;
-    this.isTarget = !!opts.isTarget;   // a mission target vehicle
+    this.isTarget = !!opts.isTarget;
     this.isPlayerCar = false;
     this.condition = 100;
     this.wrecked = false;
@@ -34,18 +34,18 @@ export class Car {
     this.radius = 2.3;
     this.lastBuildingHit = -9;
     this.stuckTimer = 0;
-    this.recoverPhase = 0;      // 0 none, 1 reversing arc, 2 forward arc
+    this.recoverPhase = 0;
     this.recoverTimer = 0;
     this.recoverCount = 0;
     this.warpCount = 0;
-    this.path = null;           // node list
+    this.path = null;
     this.pathIdx = 0;
     this.replanTimer = 0;
-    this.followTarget = null;   // live Car being pursued, or null
+    this.followTarget = null;
     this.goalNode = -1;
     this.waitTimer = 0;
-    this.rammedBy = null;       // { car, relSpeed } of the last ram this frame
-    this.cruise = opts.cruise || 0; // target cruise speed for AI traffic/targets
+    this.rammedBy = null;
+    this.cruise = opts.cruise || 0;
   }
 
   step(dt, throttle, steerTarget, city, cars, now) {
@@ -57,8 +57,8 @@ export class Car {
     this.heading += turnRate * dt;
     if (throttle > 0) this.speed += this.accel * throttle * dt;
     else if (throttle < 0) {
-      if (this.speed > 0.5) this.speed += 30 * throttle * dt; // braking
-      else this.speed += 9 * throttle * dt;                    // reversing
+      if (this.speed > 0.5) this.speed += 30 * throttle * dt;
+      else this.speed += 9 * throttle * dt;
     } else {
       this.speed -= Math.sign(this.speed) * Math.min(Math.abs(this.speed), 6 * dt);
     }
@@ -162,7 +162,7 @@ export class Car {
 
     if (this.recoverPhase !== 0) {
       if (following && targetMoving) {
-        this.recoverPhase = 0; // never reverse at a moving target
+        this.recoverPhase = 0;
       } else {
         this.recoverTimer += dt;
         if (this.recoverPhase === 1) {

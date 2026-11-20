@@ -36,15 +36,15 @@ beacon on the pier.
   Safe Passage, The Regent, Manhunt, High Tide — with stage counters, objectives,
   a NEXT step, and dialogue from Nadia the mechanic, Tomas the lookout, Elena the
   smuggler, and Vidal himself.
-- **HUD** — mission header + stage + objective, named-police panel, wanted stars,
+- **HUD** — mission header + stage + objective, a gold progress bar for the current mission stage with a percentage, named-police panel with a "+N more" line when units outnumber the rows, wanted stars,
   money, health/armour bars with readable numbers, weapon slots with ammo,
   a circular minimap with route and search zone, speed + car name + condition, radio station, district label, a respect rank bar (Rookie → Legend of Coraluna),
   crew ability cards for Dario, Nadia and Tomas — Bribe, Jammer and Field Fix,
-  each with a portrait, a cash cost and a cooldown — and a time-of-day clock.
-- **Pause / map / progress** — P opens a real pause screen: the eight-mission list with each mission done, next or locked, money and respect, and a full-city map drawn from the 7×7 road lattice and the eight district regions, with the player's position, the objective marker, the route and police dots on it. Short district labels keep every name inside its cell, and a legend key fills the space below the map. A night grade (deep-blue sky, lamps and headlights carrying the frame) stages the night chase.
+  each with a portrait, a cash cost and a cooldown — and a time-of-day clock. Mission targets carry a gold TARGET marker so the objective reads at a glance.
+- **Pause / map / progress** — P opens a full-screen menu with a tab bar (Map, Story, Stats, Controls): the eight-mission list with each mission done, next or locked, a career panel (money, respect, story and district completion, cars stolen, police escaped, distance driven, highest wanted level), three save slots, and a full-city map drawn from the 7×7 road lattice and the eight district regions, with place icons for the garage, market, pier gate, harbour, safehouse and lookout, each district's completion percentage, the player's position, the objective marker, the route and police dots on it. Short district labels keep every name inside its cell, and a legend key fills the space below the map. A night grade (deep-blue sky, lamps and headlights carrying the frame) stages the night chase.
 - **Hero car** — the player car is a shaped body now, not a box: sloped nose and tail deck, a set-back glass cabin with sloped windscreen, a rear wing, a front grille, hubcapped wheels, headlights with amber indicators and a full-width red taillight bar, in a paint colour that reads at a glance. The hero car wears a clearcoat gloss finish.
 - **Look** — crisp 2048px shadows, ACES filmic tone mapping, a subtle vignette, wet asphalt with long golden streak reflections and painted markings, buildings with lit windows from a window-pattern atlas, lamp posts with pools of light, and drifting dust and embers.
-- **Round 7 staging** — the cover is a sea-front drive down the Playa Serena coast road: water, palms and pedestrians in frame, the red SOLANO GT running south with the helicopter over the bay and the CPD closing in. The finale is caught mid-fight in Plaza Central: Dario's SMG firing with a muzzle flash and tracer, one of Vidal's men down on the street, Vidal staggering and firing back with a name tag and health bar over him, health and armour showing the damage taken. The night chase runs a pearl-white AZABACHE GT with headlight beams so the car reads against the dark asphalt. Cover and finale are different scenes: a sea-front drive vs a plaza gunfight.
+- **Round 8 staging** — the cover is a wide sea-front drive down the Playa Serena coast road: beach and sea fill the right third of the frame under a blue-to-pink sky with clouds, the red SOLANO GT running south three-quarter and low in frame with the helicopter over the bay and the CPD closing in. The finale is caught mid-fight in Plaza Central: Dario's SMG firing with a muzzle flash and tracer, one of Vidal's men down on the street, Vidal staggering and firing back with a name tag and health bar over him, health and armour showing the damage taken. The night chase runs a pearl-white AZABACHE GT with headlight beams so the car reads against the dark asphalt, and the Regent carries a gold TARGET marker. Cover and finale are different scenes: a sea-front drive vs a plaza gunfight.
 - **Radio** — three procedural WebAudio stations: SOL 98.1 Island Pop,
   MAREA 104.5 Reggae Marea, NOCHE 89.3 Synthwave, plus engine hum, sirens,
   gunshots and crash sounds.
@@ -95,7 +95,7 @@ open `game/index.html?autotest=1` and watch the console for the result.
 - `game/src/vehicles.js` — car physics, the chase autopilot, traffic, police, helicopter.
 - `game/src/player.js` — on-foot movement, car entry, melee + ranged combat.
 - `game/src/missions.js` — the 8-mission story, characters and dialogue.
-- `game/src/hud.js` — HUD panels, minimap, procedural portraits, and the pause / map / progress screen (mission list, money and respect, full-city map).
+- `game/src/hud.js` — HUD panels, minimap, procedural portraits, mission progress bar and police "+N more" line, and the full-screen tabbed pause menu (map with place icons and district completion, story list, career stats, save slots, controls).
 - `game/src/audio.js` — procedural radio stations and effects (WebAudio).
 - `game/src/autotest.js` — scripted 8-mission playthrough, reachability gate, screenshot staging.
 - `game/src/util.js` — math and seeded-random helpers.

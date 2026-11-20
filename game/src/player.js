@@ -1,6 +1,6 @@
 // player.js — Dario Fuentes on foot: walking, entering and stealing cars,
 import { clamp, angleDiff, dist } from './util.js';
-import { nearestNode, nearestRoadPoint } from './city.js';
+import { nearestRoadPoint } from './city.js';
 
 export const WEAPONS = [
   { id: 'FISTS', name: 'FISTS', ammo: Infinity, damage: 12, range: 2.2, rate: 0.45 },
@@ -20,7 +20,7 @@ export class Player {
     this.weaponIdx = 0;
     this.weaponsOwned = [true, true, false, false];
     this.ammo = { PISTOL: 60, SMG: 90, SHOTGUN: 18 };
-    this.inCar = null;          // Car the player is driving, or null
+    this.inCar = null;
     this.onFoot = true;
     this.attackCooldown = 0;
     this.dead = false;
@@ -148,36 +148,6 @@ export class Player {
     return best;
   }
 
-  autoWalk(dt, city, targetNode, enemies) {
-    if (this.inCar || this.dead) return false;
-    const goal = city.graph.nodes[targetNode];
-    if (dist(this.x, this.z, goal.x, goal.z) < 5) return true;
-    const myNode = nearestNode(city.graph, this.x, this.z);
-    const path = this._walkPath || null;
-    if (!path || path.length === 0 || this._walkGoal !== targetNode) {
-      this._walkPath = null;
-      this._walkGoal = targetNode;
-    }
-    const next = nextNodeToward(city, myNode, targetNode);
-    const p = city.graph.nodes[next];
-    const desired = Math.atan2(p.x - this.x, p.z - this.z);
-    this.heading += clamp(angleDiff(this.heading, desired), -3 * dt, 3 * dt);
-    this.stepOnFoot(dt, { forward: true }, city);
-    if (enemies) {
-      let best = null, bestD = 26;
-      for (const e of enemies) {
-        if (e.health <= 0) continue;
-        const d = dist(this.x, this.z, e.x, e.z);
-        if (d < bestD) { bestD = d; best = e; }
-      }
-      if (best) {
-        this.heading = Math.atan2(best.x - this.x, best.z - this.z);
-        this.attack(enemies, 0);
-      }
-    }
-    return false;
-  }
-
   update(dt) {
     this.attackCooldown = Math.max(0, this.attackCooldown - dt);
     this.stealCooldown = Math.max(0, this.stealCooldown - dt);
@@ -189,11 +159,4 @@ export function hitsBuilding(x, z, city) {
     if (x > b.x0 - 0.7 && x < b.x1 + 0.7 && z > b.z0 - 0.7 && z < b.z1 + 0.7) return true;
   }
   return false;
-}
-
-import { findPath } from './city.js';
-export function nextNodeToward(city, from, to) {
-  if (from === to) return to;
-  const path = findPath(city.graph, from, to);
-  return path && path.length > 1 ? path[1] : to;
 }

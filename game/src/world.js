@@ -44,7 +44,7 @@ function makePoolTexture(THREE) {
 
 export function buildWorld(city, THREE) {
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xff9a55, 260, 900);
+  scene.fog = new THREE.Fog(0xf2a080, 260, 900);
 
   const skyGeo = new THREE.SphereGeometry(900, 24, 16);
   const skyMat = new THREE.ShaderMaterial({
@@ -58,9 +58,9 @@ export function buildWorld(city, THREE) {
       'varying vec3 vDir; uniform vec3 sunDir; uniform float nightMix;',
       'void main() {',
       '  vec3 d = normalize(vDir);',
-      '  vec3 horizon = vec3(1.0, 0.55, 0.22);',
-      '  vec3 mid = vec3(0.98, 0.45, 0.28);',
-      '  vec3 zenith = vec3(0.16, 0.28, 0.48);',
+      '  vec3 horizon = vec3(1.0, 0.66, 0.52);',
+      '  vec3 mid = vec3(0.92, 0.52, 0.60);',
+      '  vec3 zenith = vec3(0.24, 0.44, 0.78);',
       '  vec3 col = mix(horizon, mid, clamp(d.y * 2.2, 0.0, 1.0));',
       '  col = mix(col, zenith, clamp(d.y * 1.6 - 0.15, 0.0, 1.0));',
       '  float glow = pow(max(dot(d, sunDir), 0.0), 18.0);',
@@ -76,9 +76,9 @@ export function buildWorld(city, THREE) {
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
   const clouds = [];
-  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffd9b0, transparent: true, opacity: 0.55, fog: false });
-  const cloudMat2 = new THREE.MeshBasicMaterial({ color: 0xffc090, transparent: true, opacity: 0.45, fog: false });
-  for (let k = 0; k < 12; k++) {
+  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xfff2e2, transparent: true, opacity: 0.75, fog: false });
+  const cloudMat2 = new THREE.MeshBasicMaterial({ color: 0xffd9c8, transparent: true, opacity: 0.6, fog: false });
+  for (let k = 0; k < 18; k++) {
     const g = new THREE.Group();
     const puffs = 2 + (k % 3);
     for (let j = 0; j < puffs; j++) {
@@ -87,7 +87,7 @@ export function buildWorld(city, THREE) {
       puff.position.set(j * 18 - puffs * 9, (j % 2) * 3, (j % 3) * 8 - 8);
       g.add(puff);
     }
-    g.position.set(-380 + k * 68, 130 + (k % 4) * 22, -320 + (k * 137) % 640);
+    g.position.set(-420 + (k * 97) % 840, 125 + (k % 4) * 24, -340 + (k * 149) % 680);
     scene.add(g);
     clouds.push(g);
   }
@@ -463,21 +463,6 @@ export function makeCarMesh(THREE, colour, isPolice) {
 
 export function carColourFor(i) { return CAR_COLOURS[i % CAR_COLOURS.length]; }
 
-export function makeFlameMesh(THREE) {
-  const g = new THREE.Group();
-  const outer = new THREE.Mesh(
-    new THREE.ConeGeometry(1.6, 4.2, 8),
-    new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.9 }));
-  outer.position.y = 2.6;
-  g.add(outer);
-  const inner = new THREE.Mesh(
-    new THREE.ConeGeometry(0.9, 3.0, 8),
-    new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.95 }));
-  inner.position.y = 2.2;
-  g.add(inner);
-  return g;
-}
-
 export function makePedMesh(THREE, shirt, skin) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
@@ -503,21 +488,48 @@ export function makePedMesh(THREE, shirt, skin) {
 
 export function makeHeliMesh(THREE) {
   const g = new THREE.Group();
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4a6a8a });
   const body = new THREE.Mesh(
-    new THREE.BoxGeometry(2.2, 1.6, 4.6),
-    new THREE.MeshLambertMaterial({ color: 0x2e4a66 }));
+    new THREE.BoxGeometry(2.2, 1.6, 4.6), bodyMat);
   g.add(body);
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 4.5),
-    new THREE.MeshLambertMaterial({ color: 0x2e4a66 }));
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.26, 0.4, 4.62),
+    new THREE.MeshLambertMaterial({ color: 0xe8e8e8 }));
+  stripe.position.y = 0.1;
+  g.add(stripe);
+  const canopy = new THREE.Mesh(
+    new THREE.BoxGeometry(1.7, 0.8, 1.3),
+    new THREE.MeshPhysicalMaterial({ color: 0x9fd8ff, metalness: 0.3, roughness: 0.1, clearcoat: 1.0 }));
+  canopy.position.set(0, 0.35, 1.9);
+  g.add(canopy);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 4.5), bodyMat);
   tail.position.set(0, 0.3, -4.2);
   g.add(tail);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.6, 1.1), bodyMat);
+  fin.position.set(0, 1.0, -6.0);
+  g.add(fin);
   const rotorMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
-  const rotor = new THREE.Mesh(new THREE.BoxGeometry(9, 0.12, 0.5), rotorMat);
+  const rotor = new THREE.Group();
+  const bladeA = new THREE.Mesh(new THREE.BoxGeometry(9.5, 0.12, 0.5), rotorMat);
+  const bladeB = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 9.5), rotorMat);
+  rotor.add(bladeA); rotor.add(bladeB);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.5, 8), rotorMat);
+  rotor.add(hub);
   rotor.position.y = 1.1;
   g.add(rotor);
   const tailRotor = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.2, 0.4), rotorMat);
   tailRotor.position.set(0.5, 0.4, -6.2);
   g.add(tailRotor);
+  const skidMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+  for (const sx of [-0.9, 0.9]) {
+    const skid = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 4.4), skidMat);
+    skid.position.set(sx, -1.15, 0.4);
+    g.add(skid);
+    for (const sz of [-1.2, 1.6]) {
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.12), skidMat);
+      strut.position.set(sx, -0.9, sz);
+      g.add(strut);
+    }
+  }
   const spot = new THREE.Mesh(
     new THREE.ConeGeometry(6, 26, 12, 1, true),
     new THREE.MeshBasicMaterial({ color: 0xfff6c0, transparent: true, opacity: 0.22, side: THREE.DoubleSide }));

@@ -1,11 +1,11 @@
 // city.js — Coraluna: the road graph, districts, buildings and reachability.
 import { makeRng, pick, dist, segHitsBox } from './util.js';
 
-export const GRID = 7;            // nodes per side
-export const SPACING = 64;        // metres between intersections
-export const HALF = (GRID - 1) * SPACING / 2; // 192
-export const ROAD_HALF = 7;       // half-width of a road
-export const BLOCK_INSET = 15;    // buildings keep this clear of road centrelines
+export const GRID = 7;
+export const SPACING = 64;
+export const HALF = (GRID - 1) * SPACING / 2;
+export const ROAD_HALF = 7;
+export const BLOCK_INSET = 15;
 
 export const DISTRICTS = [
   { name: 'PLAYA SERENA', short: 'PLAYA', region: { x0: -192, z0: -192, x1: -64, z1: -64 }, colour: '#e8b64c' },

@@ -13,14 +13,14 @@ export const CHARACTERS = {
 const N = (i, j) => j * 7 + i;
 
 export const LOCATIONS = {
-  spawn: N(3, 3),        // Plaza Central
-  garage: N(2, 4),       // Nadia's garage, Mercado Viejo edge
-  market: N(1, 5),       // Mercado Viejo pickup
-  pierGate: N(0, 1),     // Puerto Azul, road end by the pier
-  harbour: N(0, 2),      // Puerto Azul harbour
-  eastGate: N(6, 6),     // Zona Franca south-east, where the limo starts (long cross-town route)
-  southPlaza: N(3, 6),   // Mirador Sur
-  lookout: N(5, 3),      // Zona Franca lookout
+  spawn: N(3, 3),
+  garage: N(2, 4),
+  market: N(1, 5),
+  pierGate: N(0, 1),
+  harbour: N(0, 2),
+  eastGate: N(6, 6),
+  southPlaza: N(3, 6),
+  lookout: N(5, 3),
 };
 
 export const MISSIONS = [
@@ -114,9 +114,9 @@ export class MissionController {
   constructor() {
     this.missionIdx = 0;
     this.stageIdx = 0;
-    this.progress = 0;        // wrecks / rams / kills in the current stage
-    this.done = false;        // all 8 missions complete
-    this.dialogue = null;     // { who, text, until }
+    this.progress = 0;
+    this.done = false;
+    this.dialogue = null;
     this.stageStartTime = 0;
     this.escortVan = null;
     this.failed = false;
