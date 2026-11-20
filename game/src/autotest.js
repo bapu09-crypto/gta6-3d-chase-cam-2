@@ -423,7 +423,7 @@ export function stageShot(game, name) {
     // with the sea on the right, three stars, helicopter. $7,400, 86 km/h.
     game.setNight(false);
     setMission(2, 1, 0);
-    const car = playerCar('TIBURON GT-R', 0xd83a2e);
+    const car = playerCar('SOLANO GT', 0xd83a2e);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
     placeCar(car, -128, -64, 0);
     car.speed = 23.8;   // 86 km/h: fast, but not rank 1's 111
@@ -445,7 +445,7 @@ export function stageShot(game, name) {
     // district, car and night grade. Respect 980 (SHOT CALLER).
     game.setNight(true);
     setMission(5, 0, 2);
-    const car = playerCar('VELOZ COMET', 0x2e6fd8);
+    const car = playerCar('AZABACHE GT', 0x2e6fd8);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
     placeCar(car, 128, 64, Math.PI);
     car.speed = 27.2;   // 98 km/h

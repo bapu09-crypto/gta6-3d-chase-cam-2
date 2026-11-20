@@ -6,8 +6,8 @@ import { clamp, angleDiff, dist, closestOnSeg } from './util.js';
 import { findPath as bfsPath, ROAD_HALF, distanceToRoad, nearestNode } from './city.js';
 
 export const CAR_NAMES = [
-  'VELOZ COMET', 'RUKAN PELO GT', 'MAREA SEDAN', 'BRISA COUPE',
-  'TIBURON GT-R', 'PALMA PICKUP', 'CORAL WAGON', 'SOLSTICE S',
+  'AZABACHE GT', 'RUKAN PELO GT', 'MAREA SEDAN', 'BRISA COUPE',
+  'SOLANO GT', 'PALMA PICKUP', 'CORAL WAGON', 'SOLSTICE S',
 ];
 export const VAN_NAMES = ['CORREOS VAN', 'MERCADO VAN', 'PUERTO VAN'];
 
@@ -24,7 +24,7 @@ export class Car {
     this.heading = opts.heading || 0;
     this.speed = 0;
     this.steer = 0;
-    this.name = opts.name || 'VELOZ COMET';
+    this.name = opts.name || 'AZABACHE GT';
     this.colour = opts.colour || 0xd83a2e;
     this.isPolice = !!opts.isPolice;
     this.isTarget = !!opts.isTarget;   // a mission target vehicle

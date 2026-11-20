@@ -108,7 +108,7 @@ export const MISSIONS = [
         objective: 'Defeat Vidal\'s men on the pier (wave 1/3)',
         next: 'Waves remaining: 3', who: 'DARIO', text: 'On foot now. Vesper out — nobody walks off this pier but me.' },
       { type: 'combat', waves: 1, title: 'FACE VIDAL',
-        objective: 'Confront Marcos Vidal at the end of the pier',
+        objective: 'Confront Marcos Vidal',
         next: 'End this', who: 'VIDAL', text: 'One last man between you and freedom, Dario. Me.' },
     ],
   },
