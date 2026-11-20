@@ -42,17 +42,9 @@ beacon on the pier.
   crew ability cards for Dario, Nadia and Tomas — Bribe, Jammer and Field Fix,
   each with a portrait, a cash cost and a cooldown — and a time-of-day clock.
 - **Pause / map / progress** — P opens a real pause screen: the eight-mission list with each mission done, next or locked, money and respect, and a full-city map drawn from the 7×7 road lattice and the eight district regions, with the player's position, the objective marker, the route and police dots on it. Short district labels keep every name inside its cell, and a legend key fills the space below the map. A night grade (deep-blue sky, lamps and headlights carrying the frame) stages the night chase.
-- **Hero car** — the player car is a shaped body now, not a box: sloped nose and tail deck, a set-back glass cabin with sloped windscreen, a rear wing, a front grille, hubcapped wheels, headlights with amber indicators and a full-width red taillight bar, in a paint colour that reads at a glance.
-  with crisp 2048px shadows, ACES filmic tone mapping, a subtle vignette, wet
-  asphalt with long golden streak reflections and painted markings, buildings
-  with lit windows from a window-pattern atlas, lamp posts with pools of light,
-  and drifting dust and embers. The hero car wears a clearcoat gloss finish.
-- **Round 6 staging** — the finale is caught mid-fight in Plaza Central: Dario's
-  SMG firing with a muzzle flash and tracer, one of Vidal's men down on the
-  street, Vidal staggering and firing back, health and armour showing the damage
-  taken. The night chase runs a pearl-white AZABACHE GT with headlight beams so
-  the car reads against the dark asphalt. Cover and finale are different scenes:
-  a sea-front drive vs a plaza gunfight.
+- **Hero car** — the player car is a shaped body now, not a box: sloped nose and tail deck, a set-back glass cabin with sloped windscreen, a rear wing, a front grille, hubcapped wheels, headlights with amber indicators and a full-width red taillight bar, in a paint colour that reads at a glance. The hero car wears a clearcoat gloss finish.
+- **Look** — crisp 2048px shadows, ACES filmic tone mapping, a subtle vignette, wet asphalt with long golden streak reflections and painted markings, buildings with lit windows from a window-pattern atlas, lamp posts with pools of light, and drifting dust and embers.
+- **Round 7 staging** — the cover is a sea-front drive down the Playa Serena coast road: water, palms and pedestrians in frame, the red SOLANO GT running south with the helicopter over the bay and the CPD closing in. The finale is caught mid-fight in Plaza Central: Dario's SMG firing with a muzzle flash and tracer, one of Vidal's men down on the street, Vidal staggering and firing back with a name tag and health bar over him, health and armour showing the damage taken. The night chase runs a pearl-white AZABACHE GT with headlight beams so the car reads against the dark asphalt. Cover and finale are different scenes: a sea-front drive vs a plaza gunfight.
 - **Radio** — three procedural WebAudio stations: SOL 98.1 Island Pop,
   MAREA 104.5 Reggae Marea, NOCHE 89.3 Synthwave, plus engine hum, sirens,
   gunshots and crash sounds.

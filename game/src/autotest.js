@@ -408,6 +408,34 @@ export function stageShot(game, name) {
     game.scene.add(g);
     return g;
   }
+  function addNameTag(x, y, z, label, health, maxHealth) {
+    // A floating name plate that always faces the camera: gold name on a
+    // dark plate with a red health bar underneath, so the marked fighter
+    // reads at thumbnail size even when the figures are small.
+    const T = game.THREE;
+    const cv = document.createElement('canvas');
+    cv.width = 256; cv.height = 72;
+    const c = cv.getContext('2d');
+    c.fillStyle = 'rgba(12, 8, 10, 0.88)';
+    c.fillRect(0, 0, 256, 72);
+    c.strokeStyle = '#ffd23a';
+    c.lineWidth = 3;
+    c.strokeRect(1, 1, 254, 70);
+    c.fillStyle = '#ffd23a';
+    c.font = 'bold 25px sans-serif';
+    c.textAlign = 'center';
+    c.fillText(label, 128, 31);
+    c.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    c.fillRect(18, 44, 220, 12);
+    c.fillStyle = '#ff5040';
+    c.fillRect(18, 44, 220 * Math.max(0, health / maxHealth), 12);
+    const tex = new T.CanvasTexture(cv);
+    const tag = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    tag.scale.set(4.4, 1.24, 1);
+    tag.position.set(x, y, z);
+    game.scene.add(tag);
+    return tag;
+  }
   function addNightBeams(car) {
     const T = game.THREE;
     const pool = new T.Mesh(new T.CircleGeometry(2.8, 20),
@@ -434,19 +462,30 @@ export function stageShot(game, name) {
     setMission(2, 1, 0);
     const car = playerCar('SOLANO GT', 0xd83a2e);
     p.inCar = car; car.isPlayerCar = true; p.onFoot = false;
-    placeCar(car, -128, -64, 0);
+    // Round 7: the coast road. The westernmost avenue (x = -192) runs the
+    // length of Playa Serena with the beach and the sea just beyond it, so
+    // the car drives south along the water instead of down an inland street.
+    // The sea sits to the car's right, the pier ahead over the bay. The car
+    // stops 18 m short of the pier-gate node, so the staged frame still
+    // shows the Drop in progress instead of completing it on the spot, and
+    // the nearest billboard sits 50 m up the road instead of looming over
+    // the car. The camera is swung a touch toward the water so the sea
+    // fills the right of the frame and the hero car reads three-quarter.
+    placeCar(car, -192, -110, 0);
     car.speed = 23.8;   // 86 km/h: fast, but not rank 1's 111
     p.money = 7400; game.respect = 210;
     p.health = 92; p.armour = 60;
     p.weaponIdx = 1; p.weaponsOwned = [true, true, true, false];
     game.clockMinutes = 17 * 60 + 12;
-    setPolice(3, [[6, 21, 0], [-6, 32, 0], [8, 46, 0],
-      [-9, -22, 0], [11, 60, 0], [-7, 74, 0]], -18, 30, 13);
+    // Police stay on the road: the coast road is only 14 m wide, so every
+    // lateral offset is kept inside the asphalt and off the sand.
+    setPolice(3, [[6, 21, 0], [-5, 32, 0], [8, 46, 0],
+      [-4, -22, 0], [7, 60, 0], [-5, 74, 0]], -18, 30, 13);
     placeTraffic([[2, 28, 0], [-3, 44, 0], [3, 62, 0],
       [-2, 82, Math.PI], [5, 100, 0], [-4, -30, 0]]);
     placePeds([[10, 14], [-11, 30], [10, 44], [-11, 58], [10, 72], [-11, 86]]);
     game.missions.say('ELENA', 'Package is in the boot, Dario. Pier gate, no detours — the CPD is already circling.', game.now);
-    game.camYaw = 0;
+    game.camYaw = -0.25;
   } else if (name === 'chase') {
     game.setNight(true);
     setMission(5, 0, 2);
@@ -524,6 +563,9 @@ export function stageShot(game, name) {
         new T.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.45 }));
       glow.position.set(boss.x - 0.7, 1.25, boss.z);
       game.scene.add(glow);
+      // Round 7: mark Vidal so the fight reads at a glance — his name and
+      // the health he has left, floating just above his head.
+      addNameTag(boss.x, 2.9, boss.z, 'MARCOS VIDAL', boss.health, 220);
     }
     const before = game.enemies.length;
     game.spawnWave(2);

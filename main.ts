@@ -13,6 +13,10 @@
 // finale staging, the brighter night chase, the polished pause map and
 // the unclipped police panel — the code below is unchanged, the game it
 // hands in is the round-6 build.
+// Round 7 hand-in: the same program again, now covering the coast-road
+// cover re-stage, the Vidal name tag in the finale, the deleted duplicate
+// pause line and the cleaned-up README — the code below is unchanged, the
+// game it hands in is the round-7 build.
 //
 // Run it outside the grader with:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
