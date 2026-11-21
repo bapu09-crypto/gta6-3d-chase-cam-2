@@ -17,11 +17,11 @@
 // cover re-stage, the Vidal name tag in the finale, the deleted duplicate
 // pause line and the cleaned-up README — the code below is unchanged, the
 // game it hands in is the round-7 build.
-// Round 8 hand-in: the same program again, now covering the full-screen
-// tabbed pause menu with career stats and save slots, the wider sea-front
-// cover with clouds and a blue-to-pink sky, the limo target marker, the
-// mission progress bar and the police panel's "+N more" line — the code
-// below is unchanged, the game it hands in is the round-8 build.
+// Round 9 hand-in: the same program again, now covering the two one-line
+// fixes — the pause screen's staged distance no longer matches rank 1's
+// 48.2 km, and the finale progress bar now tracks Vidal's remaining
+// health instead of sitting at 0% mid-fight — the code below is unchanged,
+// the game it hands in is the round-9 build.
 //
 // Run it outside the grader with:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts

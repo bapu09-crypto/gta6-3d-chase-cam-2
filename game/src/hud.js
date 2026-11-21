@@ -403,7 +403,11 @@ export class Hud {
     let frac = 0;
     if (s0) {
       if (s0.type === 'wreck' || s0.type === 'ram') frac = s0.count ? mc.progress / s0.count : 0;
-      else if (s0.type === 'combat') frac = s0.waves ? mc.progress / s0.waves : 0;
+      else if (s0.type === 'combat') {
+        const boss = game.enemies.find(e => e.boss);
+        if (boss) frac = 1 - Math.max(0, boss.health) / 220;
+        else frac = s0.waves ? mc.progress / s0.waves : 0;
+      }
       else if (s0.type === 'lose') frac = game.stageStartWanted > 0 ? (game.stageStartWanted - game.wanted) / game.stageStartWanted : 0;
       else if (game.objectivePos && game.stageStartDist > 0) {
         frac = 1 - dist(game.px(), game.pz(), game.objectivePos.x, game.objectivePos.z) / game.stageStartDist;

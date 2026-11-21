@@ -546,7 +546,7 @@ export function stageShot(game, name) {
 
 
     game.carsStolen = 4; game.policeEscaped = 6;
-    game.distanceDriven = 48200; game.maxWanted = 4;
+    game.distanceDriven = 51700; game.maxWanted = 4;
     game.visitedDistricts = new Set(['PLAZA CENTRAL', 'MERCADO VIEJO', 'PUERTO AZUL',
       'PLAYA SERENA', 'LAS TORRES', 'COLINA VERDE']);
     const car = playerCar('BRISA COUPE', 0x3aa84c);
